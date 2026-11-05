@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hexkvíz – moderátor</title>
 <link rel="stylesheet" href="css/spolecne.css">
+<link rel="stylesheet" href="css/spravce.css">
 <style>
   body { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
   header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; padding: 12px 20px; }
@@ -80,6 +81,28 @@
   .settings input[type=number] { width: 80px; font: inherit; padding: 4px 8px; }
   .settings label { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; }
   .manual { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* nová hra */
+  .card.ng { width: min(900px, 100%); }
+  .card h3 { margin: 4px 0 0; }
+  .ng-teams { display: flex; align-items: center; gap: 14px; font-weight: 700; color: #6b7894; }
+  .ng-teams label { flex: 1; display: flex; gap: 8px; align-items: center; }
+  .ng-teams input:not([type=color]) { flex: 1; font: inherit; font-size: 20px; font-weight: 700; padding: 6px 10px; border: 1px solid #c5cde0; border-radius: 10px; color: #1d2b4f; }
+  .ng-teams input[type=color] { width: 40px; height: 40px; border: none; padding: 0; background: none; cursor: pointer; }
+  .ng-themes { display: flex; flex-direction: column; gap: 10px; max-height: 45vh; }
+  .ng-theme { border: 2px solid #e3e8f2; border-radius: 14px; padding: 10px 14px; }
+  .ng-theme.on { border-color: #2f5fb3; background: #f3f7ff; }
+  .ng-theme > label { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 800; cursor: pointer; }
+  .ng-theme > label small { font-size: 13px; font-weight: 600; color: #6b7894; margin-left: auto; }
+  .ng-theme input[type=checkbox] { width: 20px; height: 20px; }
+  .ng-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-left: 30px; }
+  .ng-cat { font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 999px; color: #fff; opacity: .3; }
+  .ng-cat.on { opacity: 1; }
+  .ng-cat small { opacity: .8; font-weight: 600; margin-left: 4px; }
+  .ng-sum { font-size: 16px; font-weight: 700; }
+  .ng-sum.warn { color: var(--bad); }
+  .ng-reset { font-size: 15px; display: flex; gap: 8px; align-items: center; }
+  .card .row .ng-start { background: var(--ok); color: #fff; font-size: 20px; font-weight: 800; padding: 12px 28px; }
   .manual button { font-size: 18px; font-weight: 700; padding: 14px; }
 </style>
 </head>
@@ -140,7 +163,7 @@
   <span class="pill" id="conn"></span>
   <button id="bUndo">↶ Zpět<kbd>Ctrl+Z</kbd></button>
   <button id="bNew">Nová hra</button>
-  <button id="bList">Seznam otázek<kbd>L</kbd></button>
+  <button id="bList">Správa otázek<kbd>L</kbd></button>
   <button id="bSettings">Nastavení<kbd>S</kbd></button>
   <span class="pill" id="remain"></span>
 </footer>
@@ -159,19 +182,24 @@
   </div>
 </div>
 
-<!-- seznam otázek -->
-<div class="modal" id="mList">
-  <div class="card" style="height:100%">
-    <div class="head">
-      <h2>Seznam otázek</h2>
-      <div class="tabs">
-        <button data-f="all" class="on">Všechny</button>
-        <button data-f="used">Použité</button>
-        <button data-f="free">Nepoužité</button>
-      </div>
-      <button class="grey" data-close>Zavřít<kbd>Esc</kbd></button>
+<!-- nová hra -->
+<div class="modal" id="mNew">
+  <div class="card ng">
+    <div class="head"><h2>Nová hra</h2><button class="grey" data-close>Zrušit<kbd>Esc</kbd></button></div>
+    <div class="ng-teams">
+      <label><input type="color" id="ngc1"><input id="ngn1" placeholder="Tým 1"></label>
+      <span>vs.</span>
+      <label><input type="color" id="ngc2"><input id="ngn2" placeholder="Tým 2"></label>
     </div>
-    <div class="scroll"><table><thead><tr><th>#</th><th>Sada · okruh</th><th>Otázka</th><th>Odpověď</th><th>Stav</th></tr></thead><tbody id="listBody"></tbody></table></div>
+    <h3>Z jakých otázek vybírat?</h3>
+    <div class="scroll ng-themes" id="ngThemes"></div>
+    <div class="ng-sum" id="ngSum"></div>
+    <label class="ng-reset"><input type="checkbox" id="ngReset"> Vrátit do hry i už použité otázky z vybraných témat a okruhů</label>
+    <div class="row">
+      <button class="grey" id="ngManage">✎ Správa otázek</button>
+      <span class="grow"></span>
+      <button class="ng-start" id="ngStart">▶ Začít hru</button>
+    </div>
   </div>
 </div>
 
@@ -188,14 +216,16 @@
       <b>Projektor</b><span>
         <label><input type="checkbox" data-bool="sound"> zvuky</label>
         <label><input type="checkbox" data-bool="showQ"> zobrazovat znění otázky</label></span>
-      <b>Sady otázek</b><span id="sSets"></span>
+      <b>Otázky</b><span>Témata a okruhy se vybírají při <b>Nové hře</b>. &nbsp; <button class="btn" id="bManage2">✎ Správa otázek</button></span>
       <b>Použité otázky</b><span><span id="sStat"></span> &nbsp; <button class="btn red" id="bResetUsed">Obnovit všechny otázky</button></span>
     </div>
   </div>
 </div>
 
 <script src="js/otazky.js"></script>
+<script src="js/databaze.js"></script>
 <script src="js/deska.js"></script>
+<script src="js/spravce.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const N = Deska.N;
@@ -206,9 +236,10 @@ const LS = { game: 'azkviz-mod-game', used: 'azkviz-mod-used', settings: 'azkviz
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
 const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
-const DEFAULTS = { tAnswer: 15, tSteal: 10, tYesNo: 10, autostart: true, steal: true, sound: true, showQ: false, sets: {} };
+// off = vypnutá témata ('id') a okruhy ('id|okruh'); vše ostatní je zapnuté
+const DEFAULTS = { tAnswer: 15, tSteal: 10, tYesNo: 10, autostart: true, steal: true, sound: true, showQ: false, off: {} };
 let settings = { ...DEFAULTS, ...load(LS.settings, {}) };
-for (const k of Object.keys(SETS)) if (!(k in settings.sets)) settings.sets[k] = true;
+delete settings.sets;
 let used = load(LS.used, {});
 
 const saved = load(LS.game, null);
@@ -221,13 +252,13 @@ let history = [];
 let manualCell = -1;
 
 // ===================== OTÁZKY =====================
-function pool(kind, onlyActive = true) {
-  if (kind === 'yesno') return ANO_NE.map((q, i) => ({ id: 'yn-' + i, set: 'ANO / NE', cat: 'ANO / NE', text: q[0], ans: q[1] }));
-  const out = [];
-  for (const [k, s] of Object.entries(SETS))
-    if (!onlyActive || settings.sets[k]) s.q.forEach((q, i) => out.push({ id: `${k}-${i}`, set: s.name, cat: q[0], text: q[1], ans: q[2] }));
-  return out;
+// kind: 'otazka' (běžná) nebo 'anone' (černé pole); off = vypnutá témata a okruhy
+function pool(kind, off = settings.off) {
+  return Otazky.all()
+    .filter(q => q.type === kind && !off[q.themeId] && !off[q.themeId + '|' + q.cat])
+    .map(q => ({ id: q.id, set: q.themeName, cat: q.cat, type: q.type, text: q.q, ans: q.a }));
 }
+const catLabel = q => q.type === 'anone' ? `ANO / NE · ${q.cat}` : q.cat;
 const free = kind => pool(kind).filter(q => !(q.id in used));
 function draw(kind) {
   const f = free(kind);
@@ -320,8 +351,8 @@ function selectCell(i, e) {
     if (i === round.cell) return;
     if (!confirm('Právě běží otázka. Zrušit ji a vybrat jiné pole? (Otázka zůstane použitá.)')) return;
   }
-  const kind = v === 3 ? 'yesno' : 'main';
-  round = { phase: kind === 'yesno' ? 'yesno' : 'question', cell: i, q: draw(kind), team: game.turn };
+  const kind = v === 3 ? 'anone' : 'otazka';
+  round = { phase: kind === 'anone' ? 'yesno' : 'question', cell: i, q: draw(kind), team: game.turn };
   showAnsProj = false;
   phaseTimer();
   sync('open');
@@ -329,7 +360,7 @@ function selectCell(i, e) {
 
 function otherQuestion() {
   if (!inRound()) return;
-  round.q = draw(round.phase === 'yesno' ? 'yesno' : 'main');
+  round.q = draw(round.phase === 'yesno' ? 'anone' : 'otazka');
   showAnsProj = false;
   phaseTimer();
   sync('open');
@@ -402,14 +433,6 @@ function undo() {
   timerClear(); showAnsProj = false;
   sync();
 }
-function newGame() {
-  if (game.owner.some(v => v) && !confirm('Opravdu začít novou hru? (Použité otázky zůstanou použité.)')) return;
-  history.push(JSON.stringify({ game, round: { phase: 'select', cell: -1, q: null, team: game.turn } }));
-  game.owner = Array(N).fill(0); game.turn = 1;
-  round = { phase: 'select', cell: -1, q: null, team: 1 };
-  timerClear(); showAnsProj = false;
-  sync();
-}
 function swapTurn() {
   if (inRound()) return;
   game.turn = other(game.turn); round.team = game.turn;
@@ -463,8 +486,8 @@ function sync(sfx = null, popCell = -1) {
   } else {
     const q = round.q;
     $('qField').textContent = `Pole ${Deska.cells[round.cell].id}` + (round.phase === 'yesno' ? ' · černé pole' : '');
-    $('qCat').textContent = q ? q.cat : '';
-    $('qCat').style.background = q ? (CAT_COLORS[q.cat] || '#34495e') : 'transparent';
+    $('qCat').textContent = q ? catLabel(q) : '';
+    $('qCat').style.background = q ? Otazky.colorFor(q.cat) : 'transparent';
     $('qText').textContent = q ? q.text : '⚠ Došly otázky. Obnov je v Nastavení, nebo vyhodnoť pole ručně.';
     $('qAns').textContent = q ? q.ans : '–';
     $('bShowAns').classList.toggle('on', showAnsProj);
@@ -497,7 +520,7 @@ function send(sfx = null, popCell = -1, info = null) {
       phaseColor: info?.phaseColor ?? '#2f5fb3',
       active: winner ? 0 : inRound() ? (round.phase === 'steal' ? other(round.team) : round.team) : game.turn,
       selected: inRound() ? round.cell : -1,
-      cat: q?.cat || '', catColor: q ? (CAT_COLORS[q.cat] || '#34495e') : '',
+      cat: q ? catLabel(q) : '', catColor: q ? Otazky.colorFor(q.cat) : '',
       question: settings.showQ && q ? q.text : '',
       answer: showAnsProj && q ? q.ans : '',
       timer: { ...timer, now: Date.now() },
@@ -507,43 +530,94 @@ function send(sfx = null, popCell = -1, info = null) {
 }
 
 function updateRemain() {
-  const n = free('main').length, y = free('yesno').length;
+  const n = free('otazka').length, y = free('anone').length;
   $('remain').textContent = `Volné otázky: ${n} · ANO/NE: ${y}`;
   $('remain').className = 'pill' + (n < 10 || y < 3 ? ' warn' : '');
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-// ===================== SEZNAM =====================
-let listFilter = 'all';
-function renderList() {
-  const rows = [...pool('main', false), ...pool('yesno')].map(q => ({ ...q, order: used[q.id] }))
-    .filter(q => listFilter === 'all' || (listFilter === 'used' ? q.order : !q.order));
-  if (listFilter === 'used') rows.sort((a, b) => a.order - b.order);
-  $('listBody').innerHTML = rows.map((q, k) => `<tr class="${q.order ? 'used' : ''}">
-    <td>${k + 1}</td><td>${esc(q.set)} · ${esc(q.cat)}</td><td>${esc(q.text)}</td><td><b>${esc(q.ans)}</b></td>
-    <td>${q.order ? `použitá (${q.order}.)` : 'volná'}</td></tr>`).join('') || '<tr><td colspan="5">Nic tu není.</td></tr>';
-}
-document.querySelectorAll('#mList .tabs button').forEach(b => b.onclick = () => {
-  listFilter = b.dataset.f;
-  document.querySelectorAll('#mList .tabs button').forEach(x => x.classList.toggle('on', x === b));
-  renderList();
+// ===================== SPRÁVA OTÁZEK =====================
+Spravce.init({
+  getUsed: () => used,
+  unuse: id => { delete used[id]; store(LS.used, used); updateRemain(); },
+  onClose: () => { if ($('mNew').classList.contains('open')) renderNewGame(); },
 });
-function openList() { renderList(); $('mList').classList.add('open'); }
+Otazky.onChange(() => { updateRemain(); if ($('mNew').classList.contains('open')) renderNewGame(); });
+const openManager = () => Spravce.open();
+
+// ===================== NOVÁ HRA =====================
+let ngOff = {};
+function newGame() {
+  ngOff = { ...settings.off };
+  for (const t of [1, 2]) { $('ngn' + t).value = game['n' + t]; $('ngc' + t).value = game['c' + t]; }
+  $('ngReset').checked = false;
+  renderNewGame();
+  $('mNew').classList.add('open');
+}
+function renderNewGame() {
+  const themes = Otazky.themes();
+  $('ngThemes').innerHTML = themes.map(t => {
+    const on = !ngOff[t.id];
+    const freeIn = qs => qs.filter(q => !(q.id in used)).length;
+    const cats = Otazky.cats(t.id).map(c => {
+      const qs = t.questions.filter(q => q.cat === c);
+      return `<button class="ng-cat ${on && !ngOff[t.id + '|' + c] ? 'on' : ''}" data-cat="${esc(t.id + '|' + c)}"
+        style="background:${Otazky.colorFor(c)}" title="Kliknutím zapneš / vypneš okruh">${esc(c)}<small>${freeIn(qs)}/${qs.length}</small></button>`;
+    }).join('');
+    const n = t.questions.filter(q => q.type === 'otazka'), y = t.questions.filter(q => q.type === 'anone');
+    return `<div class="ng-theme ${on ? 'on' : ''}">
+      <label><input type="checkbox" data-theme="${esc(t.id)}" ${on ? 'checked' : ''}> ${esc(t.name)}
+        <small>volné: ${freeIn(n)}/${n.length} běžných · ${freeIn(y)}/${y.length} ANO/NE</small></label>
+      <div class="ng-cats">${cats || '<small>Téma zatím nemá žádné otázky.</small>'}</div></div>`;
+  }).join('') || '<div>Zatím nemáš žádné téma. Vytvoř ho ve Správě otázek.</div>';
+  $('ngThemes').querySelectorAll('[data-theme]').forEach(i => i.onchange = () => { ngOff[i.dataset.theme] = !i.checked; renderNewGame(); });
+  $('ngThemes').querySelectorAll('[data-cat]').forEach(b => b.onclick = () => {
+    const tid = b.dataset.cat.split('|')[0];
+    if (ngOff[tid]) ngOff[tid] = false; else ngOff[b.dataset.cat] = !ngOff[b.dataset.cat];
+    renderNewGame();
+  });
+  ngSummary();
+}
+function ngSummary() {
+  const reset = $('ngReset').checked;
+  const cnt = kind => pool(kind, ngOff).filter(q => reset || !(q.id in used)).length;
+  const n = cnt('otazka'), y = cnt('anone');
+  const warn = n < 28 || y < 3;
+  $('ngSum').innerHTML = `Ve hře bude <b>${n}</b> běžných a <b>${y}</b> ANO / NE otázek.` +
+    (warn ? ` ⚠ Na celou desku (28 polí) se hodí aspoň 28 běžných a pár ANO / NE otázek.` : '');
+  $('ngSum').classList.toggle('warn', warn);
+  $('ngStart').disabled = n === 0;
+}
+$('ngReset').onchange = ngSummary;
+$('ngManage').onclick = openManager;
+$('ngStart').onclick = () => {
+  history.push(JSON.stringify({ game, round: { phase: 'select', cell: -1, q: null, team: game.turn } }));
+  settings.off = Object.fromEntries(Object.entries(ngOff).filter(([, v]) => v));
+  store(LS.settings, settings);
+  if ($('ngReset').checked) {
+    for (const q of [...pool('otazka'), ...pool('anone')]) delete used[q.id];
+    store(LS.used, used);
+  }
+  for (const t of [1, 2]) { game['n' + t] = $('ngn' + t).value.trim() || 'Tým ' + t; game['c' + t] = $('ngc' + t).value; }
+  game.owner = Array(N).fill(0); game.turn = 1;
+  round = { phase: 'select', cell: -1, q: null, team: 1 };
+  timerClear(); showAnsProj = false;
+  $('mNew').classList.remove('open');
+  sync();
+};
 
 // ===================== NASTAVENÍ =====================
 function openSettings() {
   document.querySelectorAll('[data-num]').forEach(i => i.value = settings[i.dataset.num]);
   document.querySelectorAll('[data-bool]').forEach(i => i.checked = !!settings[i.dataset.bool]);
-  $('sSets').innerHTML = Object.entries(SETS).map(([k, s]) =>
-    `<label><input type="checkbox" data-set="${k}" ${settings.sets[k] ? 'checked' : ''}> ${esc(s.name)} (${s.q.length})</label>`).join('');
-  $('sSets').querySelectorAll('input').forEach(i => i.onchange = () => { settings.sets[i.dataset.set] = i.checked; saveSettings(); });
   refreshStat();
   $('mSet').classList.add('open');
 }
 function refreshStat() {
-  const all = pool('main').length + ANO_NE.length, f = free('main').length + free('yesno').length;
-  $('sStat').textContent = `${all - f} použito, ${f} volných`;
+  const all = pool('otazka').length + pool('anone').length, f = free('otazka').length + free('anone').length;
+  $('sStat').textContent = `${all - f} použito, ${f} volných (ve vybraných tématech)`;
 }
+$('bManage2').onclick = openManager;
 function saveSettings() { store(LS.settings, settings); refreshStat(); sync(); }
 document.querySelectorAll('[data-num]').forEach(i => i.oninput = () => { settings[i.dataset.num] = Math.max(0, Math.min(300, +i.value || 0)); saveSettings(); });
 document.querySelectorAll('[data-bool]').forEach(i => i.onchange = () => { settings[i.dataset.bool] = i.checked; saveSettings(); });
@@ -565,7 +639,7 @@ $('bCancel').onclick = cancelRound;
 $('bSwap').onclick = swapTurn;
 $('bUndo').onclick = undo;
 $('bNew').onclick = newGame;
-$('bList').onclick = openList;
+$('bList').onclick = openManager;
 $('bSettings').onclick = openSettings;
 $('bProj').onclick = openProjector;
 for (const t of [1, 2]) {
@@ -574,15 +648,15 @@ for (const t of [1, 2]) {
 }
 
 document.addEventListener('keydown', e => {
-  if (['INPUT', 'TEXTAREA'].includes(e.target.tagName) && e.target.type !== 'checkbox') { if (e.key === 'Escape') e.target.blur(); return; }
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) && e.target.type !== 'checkbox') { if (e.key === 'Escape') e.target.blur(); return; }
   const k = e.key.toLowerCase();
-  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); return; }
-  const modal = document.querySelector('.modal.open');
+  const modal = [...document.querySelectorAll('.modal.open')].pop();   // nejvrchnější okno
   if (modal) {
-    if (e.key === 'Escape') modal.classList.remove('open');
+    if (e.key === 'Escape') modal.id === 'mSpravce' ? Spravce.close() : modal.classList.remove('open');
     if (modal.id === 'mManual' && ['0', '1', '2', '3'].includes(e.key)) document.querySelector(`[data-m="${e.key}"]`).click();
     return;
   }
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); return; }
   if (inRound()) {
     if (e.key === '1') answer(true);
     else if (e.key === '2') answer(false);
@@ -593,13 +667,15 @@ document.addEventListener('keydown', e => {
     else if (k === 'o') $('bShowAns').click();
     else if (e.key === 'Escape') cancelRound();
   } else if (e.key === ' ') { e.preventDefault(); swapTurn(); }
-  if (k === 'l') openList();
+  if (k === 'l') openManager();
   else if (k === 's') openSettings();
   else if (k === 'p') openProjector();
 });
 
 sync();
 updateConn();
+// na začátku (prázdná deska) rovnou nabídni výběr otázek
+if (!game.owner.some(v => v) && round.phase === 'select') newGame();
 </script>
 </body>
 </html>

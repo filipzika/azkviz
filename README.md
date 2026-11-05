@@ -48,35 +48,58 @@ Zvuky hraje okno projektoru – prohlížeč je povolí až po prvním kliknutí
 | `Esc` | zrušit výběr pole |
 | `Mezerník` | přepnout tým na tahu |
 | `Ctrl + Z` | zpět |
-| `L` | seznam otázek (všechny / použité / nepoužité) |
+| `L` | správa otázek |
 | `S` | nastavení |
 | `P` | otevřít projektor |
 
 **Otázky se neopakují** – každá otevřená otázka se označí jako použitá a nevrátí se ani v další hře.
 Obnovit je lze v Nastavení → *Obnovit všechny otázky*.
 
+## Nová hra a výběr otázek
+
+Při spuštění (a po kliknutí na **Nová hra**) se otevře dialog, kde nastavíš jména a barvy týmů
+a vybereš, **ze kterých témat a okruhů** se budou otázky losovat. Kliknutím na okruh
+(např. *Myš*) ho vypneš / zapneš. Dialog ukazuje, kolik volných otázek bude ve hře, a umí
+vrátit do hry už použité otázky z vybraných témat.
+
+## Správa otázek
+
+Tlačítko **Správa otázek** (`L`) – otázky jsou rozdělené do **témat** (např. *Počítačové periferie*),
+každá otázka má **okruh** (Monitor, Myš…) a **typ**:
+
+- **Běžná** – pro prázdná pole,
+- **ANO / NE** – pro černá pole, odpověď musí začínat slovem ANO nebo NE.
+
+Ve správě můžeš:
+
+- přidávat, upravovat (✎) a mazat (🗑) otázky, přesunout otázku do jiného tématu,
+- vytvářet, přejmenovávat a mazat témata,
+- hromadně vložit otázky, jedna na řádek: `Okruh | Otázka | Odpověď`,
+- hledat a filtrovat podle typu, okruhu a stavu, vracet použité otázky do hry (↺),
+- **Export / Import** témat do souboru `.json` (záloha, sdílení s kolegy),
+- **Export jako otazky.js** – vygeneruje nový soubor [`js/otazky.js`](js/otazky.js); když jím
+  nahradíš ten v repozitáři a commitneš ho, tvoje otázky budou výchozí všude.
+
+Úpravy se ukládají v prohlížeči (localStorage). Výchozí otázky z `js/otazky.js` se do nich
+automaticky doplňují – kromě těch, které jsi smazal. **Obnovit výchozí** zahodí všechny úpravy.
+
+> Otázky žijí v prohlížeči, ve kterém je upravuješ. Před přechodem na jiný počítač nebo prohlížeč
+> si je vyexportuj (nebo použij *Export jako otazky.js* a commitni je).
+
 ## Nastavení
 
 Čas na odpověď, čas pro soupeře, čas na ANO/NE, automatický start časovače, šance pro soupeře,
-zvuky, zobrazení znění otázky na projektoru a výběr sad otázek.
-
-## Úprava otázek
-
-Všechny otázky jsou v [`js/otazky.js`](js/otazky.js):
-
-- `SETS` – sady běžných otázek ve tvaru `['Okruh', 'Otázka', 'Odpověď']`
-- `ANO_NE` – otázky pro černá pole ve tvaru `['Otázka', 'ANO' | 'NE']`
-
-Novou sadu přidáš jako další položku v `SETS` (např. `s4: { name: 'Sada 4', q: [ ... ] }`),
-v nastavení se pak objeví automaticky.
+zvuky a zobrazení znění otázky na projektoru.
 
 ## Struktura
 
 ```
 index.html        moderátor
 projektor.html    projektor
-js/otazky.js      otázky
+js/otazky.js      výchozí otázky (témata)
+js/databaze.js    databáze otázek (úpravy, import/export)
+js/spravce.js     okno Správa otázek
 js/deska.js       deska, výpočet výhry, vykreslení
-css/spolecne.css  společné styly
+css/              styly
 stare-verze/      předchozí jednookenní verze hry
 ```

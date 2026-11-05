@@ -1,0 +1,42 @@
+/* Správa otázek */
+.card.sp { width: min(1400px, 100%); height: 100%; }
+.sp .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sp-body { display: grid; grid-template-columns: 260px 1fr; gap: 18px; min-height: 0; flex: 1; }
+.sp aside { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.sp-themes { display: flex; flex-direction: column; gap: 6px; }
+.sp-theme { text-align: left; background: #eef1f7; color: #1d2b4f; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
+.sp-theme small { color: #6b7894; font-size: 12px; }
+.sp-theme.on { background: #2f5fb3; color: #fff; }
+.sp-theme.on small { color: #d8e2f7; }
+#spMain { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.sp-theme-head { display: flex; gap: 8px; align-items: center; }
+.sp-theme-head input { flex: 1; font: inherit; font-size: 22px; font-weight: 800; color: #1d2b4f; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; }
+.sp-theme-head input:hover, .sp-theme-head input:focus { border-color: #c5cde0; outline: none; }
+.sp-form { background: #f4f6fb; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; border: 2px solid transparent; }
+.sp-form.editing { border-color: #f1c40f; background: #fffbea; }
+.sp-form-title { font-weight: 800; }
+.sp-grid { display: grid; grid-template-columns: 220px 1fr 1fr; gap: 8px 12px; }
+.sp-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-weight: 700; color: #5b6a8c; }
+.sp-grid label.wide { grid-column: 1 / -1; }
+.sp input, .sp select, .sp textarea { font: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid #c5cde0; border-radius: 8px; color: #1d2b4f; background: #fff; }
+.sp textarea { resize: vertical; width: 100%; }
+.sp-msg { font-size: 14px; color: var(--ok); font-weight: 700; }
+.sp-msg.bad { color: var(--bad); }
+.sp-bulk { background: #f4f6fb; border-radius: 14px; padding: 10px 14px; font-size: 14px; }
+.sp-bulk summary { cursor: pointer; font-weight: 800; font-size: 15px; }
+.sp-bulk[open] { display: flex; flex-direction: column; gap: 8px; }
+.sp-bulk textarea { font-family: Consolas, monospace; font-size: 14px; }
+.sp-filter { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sp-filter input { flex: 1; min-width: 200px; }
+#flCount { color: #6b7894; font-size: 14px; }
+.sp-table { flex: 1; min-height: 160px; }
+.sp table td { font-size: 14px; }
+.sp tr.editing td { background: #fffbea; }
+.sp .cat { font-size: 11px; padding: 2px 8px; white-space: nowrap; }
+.sp-type { font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 6px; background: #e3e8f2; white-space: nowrap; }
+.sp-type.anone { background: var(--black); color: #fff; }
+.sp-act { white-space: nowrap; }
+.sp button.mini { padding: 3px 8px; font-size: 13px; background: #e3e8f2; color: #1d2b4f; }
+.sp button.mini.red { background: #f8d7d3; }
+.sp-none, .sp-empty { color: #6b7894; text-align: center; padding: 30px; font-size: 16px; }
+.sp code { background: #e3e8f2; padding: 1px 5px; border-radius: 4px; }
