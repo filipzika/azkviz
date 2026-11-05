@@ -24,14 +24,25 @@ Zvuky hraje okno projektoru – prohlížeč je povolí až po prvním kliknutí
 
 ## Pravidla
 
+Podle herního řádu AZ-kvízu (body 7–11 a 21):
+
+- O tom, kdo začíná, rozhoduje **los** (nebo ho zvolíš v dialogu Nová hra).
 - Týmy se střídají. Tým na tahu si vybere číslo pole, moderátor na něj klikne.
+- **Limit na výběr pole** (v TV 5 s): kdo nevybere včas, ztrácí tah – právo volby má soupeř.
+  Odpočet běží od druhého tahu, první výběr hry je bez limitu.
 - **Prázdné pole** → běžná otázka.
   - Správně → pole získá tým na tahu.
-  - Špatně nebo bez odpovědi → může odpovídat soupeř. Správně → pole je jeho, špatně → pole zčerná.
-    Soupeř může odpovídat **odmítnout** – pole pak hned zčerná.
+  - Špatně nebo bez odpovědi → může odpovídat soupeř (bez možnosti opravy). Správně → pole je jeho,
+    špatně → pole zčerná. Soupeř může odpovídat **odmítnout** – pole pak hned zčerná.
     (Šanci pro soupeře lze vypnout v nastavení, pak špatná odpověď = rovnou černé pole.)
 - **Černé pole** → otázka ANO / NE. Správně → pole získá tým na tahu, špatně → získá ho soupeř.
 - Vyhrává tým, jehož souvislá řada polí spojí **všechny tři strany** trojúhelníku.
+- **Limit hry** (v TV 7:30) se spustí výběrem prvního pole. Po vypršení se rozečtená otázka
+  dohraje (včetně šance pro soupeře) a vyhrává tým s **více poli**. Při shodě následuje
+  **rozstřel ANO / NE**: odpovídá tým, který dřív zmáčkne (bzučák, zvednutá ruka…); správně → vyhrává,
+  špatně → vyhrává soupeř. Když nezmáčkne nikdo, prohrává tým, který by volil další pole.
+
+Limit hry, limit na výběr pole a kdo začíná se volí v dialogu **Nová hra**.
 
 ## Ovládání moderátora
 
@@ -39,10 +50,11 @@ Zvuky hraje okno projektoru – prohlížeč je povolí až po prvním kliknutí
 |---|---|
 | klik na pole | tým si vybral toto pole (vytáhne se otázka) |
 | pravé tlačítko / Shift + klik | ruční úprava pole |
-| `1` / `2` | správně / špatně (nebo bez odpovědi) |
-| `3` | soupeř odmítá odpovídat → černé pole |
-| `T` | spustit / pozastavit časovač |
+| `1` / `2` | správně / špatně (nebo bez odpovědi); v rozstřelu: dřív zmáčkl tým 1 / tým 2 |
+| `3` | soupeř odmítá odpovídat → černé pole; v rozstřelu: nikdo nezmáčkl |
+| `T` | spustit / pozastavit časovač (odpověď i výběr pole) |
 | `R` | časovač znovu od začátku |
+| `G` | pozastavit / spustit čas hry (nebo klik na hodiny) |
 | `N` | jiná otázka (stávající zůstane použitá) |
 | `O` | ukázat / skrýt správnou odpověď na projektoru |
 | `Esc` | zrušit výběr pole |
@@ -57,7 +69,8 @@ Obnovit je lze v Nastavení → *Obnovit všechny otázky*.
 
 ## Nová hra a výběr otázek
 
-Při spuštění (a po kliknutí na **Nová hra**) se otevře dialog, kde nastavíš jména a barvy týmů
+Při spuštění (a po kliknutí na **Nová hra**) se otevře dialog, kde nastavíš jména a barvy týmů,
+kdo začíná (los), **limit hry** a **limit na výběr pole** (obojí lze i bez limitu)
 a vybereš, **ze kterých témat a okruhů** se budou otázky losovat. Kliknutím na okruh
 (např. *Myš*) ho vypneš / zapneš. Dialog ukazuje, kolik volných otázek bude ve hře, a umí
 vrátit do hry už použité otázky z vybraných témat.

@@ -17,6 +17,9 @@
   .center { text-align: center; }
   .center h1 { margin: 0; font-size: 22px; letter-spacing: 3px; opacity: .8; }
   .center .turn { font-size: 18px; font-weight: 700; margin: 4px 0; }
+  .clock { font-size: 18px; font-weight: 800; padding: 4px 14px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+  .clock.low { background: #e67e22; }
+  .clock.over { background: var(--bad); }
 
   main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; padding: 0 20px; min-height: 0; }
   .boardWrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; }
@@ -89,6 +92,9 @@
   .ng-teams label { flex: 1; display: flex; gap: 8px; align-items: center; }
   .ng-teams input:not([type=color]) { flex: 1; font: inherit; font-size: 20px; font-weight: 700; padding: 6px 10px; border: 1px solid #c5cde0; border-radius: 10px; color: #1d2b4f; }
   .ng-teams input[type=color] { width: 40px; height: 40px; border: none; padding: 0; background: none; cursor: pointer; }
+  .ng-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .ng-opts label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; color: #5b6a8c; }
+  .ng-opts select { font: inherit; font-size: 17px; font-weight: 600; padding: 6px 8px; border: 1px solid #c5cde0; border-radius: 10px; color: #1d2b4f; }
   .ng-themes { display: flex; flex-direction: column; gap: 10px; max-height: 45vh; }
   .ng-theme { border: 2px solid #e3e8f2; border-radius: 14px; padding: 10px 14px; }
   .ng-theme.on { border-color: #2f5fb3; background: #f3f7ff; }
@@ -116,6 +122,7 @@
   <div class="center">
     <h1>HEXKVÍZ · MODERÁTOR</h1>
     <div class="turn" id="turn"></div>
+    <button class="clock" id="clock" title="Čas hry – kliknutím pozastavíš / spustíš (G)"></button>
     <button id="bSwap">⇄ Přepnout tah <kbd>Mezerník</kbd></button>
   </div>
   <div class="team" id="team2">
@@ -133,6 +140,7 @@
 
   <section class="panel">
     <div class="phase" id="phase"></div>
+    <div class="timer" id="timer"><div class="bar" id="tBar"></div><span id="tNum"></span></div>
 
     <div id="idle" class="idle"></div>
 
@@ -140,7 +148,6 @@
       <div class="meta"><span id="qField"></span><span class="cat" id="qCat"></span></div>
       <div class="q" id="qText"></div>
       <div class="ans"><small>Správná odpověď</small><div id="qAns"></div></div>
-      <div class="timer" id="timer"><div class="bar" id="tBar"></div><span id="tNum"></span></div>
       <div class="row">
         <button id="bTimer">▶ Start<kbd>T</kbd></button>
         <button id="bRestart">↺ Znovu<kbd>R</kbd></button>
@@ -191,6 +198,18 @@
       <span>vs.</span>
       <label><input type="color" id="ngc2"><input id="ngn2" placeholder="Tým 2"></label>
     </div>
+    <div class="ng-opts">
+      <label>Kdo začíná
+        <select id="ngStarter"><option value="los">🎲 Losovat</option><option value="1">Tým 1</option><option value="2">Tým 2</option></select></label>
+      <label>Limit hry
+        <select id="ngLimit">
+          <option value="0">bez limitu</option><option value="300">5:00</option><option value="450">7:30 (jako v TV)</option>
+          <option value="600">10:00</option><option value="900">15:00</option><option value="1200">20:00</option></select></label>
+      <label>Limit na výběr pole
+        <select id="ngSelect">
+          <option value="0">bez limitu</option><option value="5">5 s (jako v TV)</option><option value="10">10 s</option>
+          <option value="15">15 s</option><option value="30">30 s</option></select></label>
+    </div>
     <h3>Z jakých otázek vybírat?</h3>
     <div class="scroll ng-themes" id="ngThemes"></div>
     <div class="ng-sum" id="ngSum"></div>
@@ -237,7 +256,8 @@ const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); re
 const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
 // off = vypnutá témata ('id') a okruhy ('id|okruh'); vše ostatní je zapnuté
-const DEFAULTS = { tAnswer: 15, tSteal: 10, tYesNo: 10, autostart: true, steal: true, sound: true, showQ: false, off: {} };
+// tSelect = limit na výběr pole (bod 9), gameLimit = limit hry v sekundách (bod 21, 7:30)
+const DEFAULTS = { tAnswer: 15, tSteal: 10, tYesNo: 10, tSelect: 5, gameLimit: 450, autostart: true, steal: true, sound: true, showQ: false, off: {} };
 let settings = { ...DEFAULTS, ...load(LS.settings, {}) };
 delete settings.sets;
 let used = load(LS.used, {});
@@ -245,6 +265,13 @@ let used = load(LS.used, {});
 const saved = load(LS.game, null);
 let game = { owner: Array(N).fill(0), turn: 1, n1: 'Tým 1', n2: 'Tým 2', c1: '#f28c1b', c2: '#2f7de1', ...(saved?.game || {}) };
 if (game.owner?.length !== N) game.owner = Array(N).fill(0);
+// hodiny hry: limit a zbývající čas v ms; started = spustí se výběrem prvního pole
+const newClock = () => ({ limit: settings.gameLimit * 1000, left: settings.gameLimit * 1000, running: false, endsAt: 0, started: false });
+game.clock ||= newClock();
+game.timeUp ||= false;
+game.forced ||= 0;          // vítěz určený časem / rozstřelem (ne propojením stran)
+game.forcedReason ||= '';
+game.started ??= game.owner.some(v => v);   // hra začne výběrem prvního pole
 let round = saved?.round?.phase ? saved.round : { phase: 'select', cell: -1, q: null, team: game.turn };
 let timer = { id: 0, duration: 0, endsAt: 0, remaining: 0, running: false };
 let showAnsProj = false;
@@ -301,8 +328,15 @@ setInterval(updateConn, 1000);
 // ===================== ČASOVAČ =====================
 const timeLeft = () => timer.running ? Math.max(0, timer.endsAt - Date.now()) : timer.remaining;
 function phaseSeconds() {
-  return round.phase === 'steal' ? settings.tSteal : round.phase === 'yesno' ? settings.tYesNo : settings.tAnswer;
+  switch (round.phase) {
+    case 'question': return settings.tAnswer;
+    case 'steal': return settings.tSteal;
+    case 'yesno': case 'tiebreak2': return settings.tYesNo;
+    case 'select': return game.timeUp || !game.started ? 0 : settings.tSelect;   // první výběr bez limitu
+    default: return 0;
+  }
 }
+const timed = () => inRound() || round.phase === 'select';
 function timerStart() {
   const s = phaseSeconds();
   timer = { id: timer.id + 1, duration: s * 1000, endsAt: Date.now() + s * 1000, remaining: s * 1000, running: s > 0 };
@@ -314,14 +348,14 @@ function timerReset() {
 }
 function timerClear() { timer = { id: timer.id + 1, duration: 0, endsAt: 0, remaining: 0, running: false }; }
 function timerToggle() {
-  if (!inRound()) return;
+  if (!timed()) return;
   if (!timer.duration) timerStart();
   else if (timer.running) { timer.remaining = timeLeft(); timer.running = false; }
   else if (timer.remaining > 0) { timer.endsAt = Date.now() + timer.remaining; timer.running = true; }
   else timerStart();
   sync();
 }
-function timerRestart() { if (!inRound()) return; timerStart(); sync(); }
+function timerRestart() { if (!timed()) return; timerStart(); sync(); }
 function phaseTimer() { settings.autostart ? timerStart() : timerReset(); }
 
 function drawTimer() {
@@ -332,25 +366,73 @@ function drawTimer() {
   $('tBar').style.width = (left / timer.duration * 100) + '%';
   tm.classList.toggle('low', sec <= 5 && left > 0);
   tm.classList.toggle('over', left <= 0);
-  $('tNum').textContent = left <= 0 ? 'ČAS VYPRŠEL' : `${sec} s${timer.running ? '' : ' – pozastaveno'}`;
+  const what = round.phase === 'select' ? `Výběr pole: ` : '';
+  $('tNum').textContent = left <= 0 ? 'ČAS VYPRŠEL' : `${what}${sec} s${timer.running ? '' : ' – pozastaveno'}`;
   $('bTimer').innerHTML = timer.running ? '⏸ Pauza<kbd>T</kbd>' : '▶ Start<kbd>T</kbd>';
-  if (timer.running && left <= 0) { timer.running = false; timer.remaining = 0; sync('buzz'); }
+  if (timer.running && left <= 0) {
+    timer.running = false; timer.remaining = 0;
+    if (round.phase === 'select') {
+      // bod 9: tým nevybral pole včas → právo tahu má soupeř
+      game.turn = other(game.turn); round.team = game.turn; round.lot = false;
+      phaseTimer();
+    }
+    sync('buzz');
+  }
 }
-setInterval(drawTimer, 100);
+
+// ===================== HODINY HRY (bod 21) =====================
+const clockLeft = () => game.clock.running ? Math.max(0, game.clock.endsAt - Date.now()) : game.clock.left;
+const fmt = ms => { const s = Math.ceil(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+function clockStart() {
+  if (!game.clock.limit || game.clock.running || game.timeUp) return;
+  game.clock.started = true; game.clock.running = true; game.clock.endsAt = Date.now() + game.clock.left;
+}
+function clockPause() { if (game.clock.running) { game.clock.left = clockLeft(); game.clock.running = false; } }
+function clockToggle() {
+  if (!game.clock.limit || game.timeUp || result().winner) return;
+  game.clock.running ? clockPause() : clockStart();
+  sync();
+}
+function drawClock() {
+  const c = $('clock');
+  if (!game.clock.limit) { c.classList.add('hidden'); return; }
+  c.classList.remove('hidden');
+  const left = clockLeft();
+  c.textContent = game.timeUp ? '⏱ Čas hry vypršel' : `⏱ ${fmt(left)}${game.clock.running ? '' : game.clock.started ? ' ⏸' : ' (spustí se 1. polem)'}`;
+  c.classList.toggle('low', !game.timeUp && left < 60000);
+  c.classList.toggle('over', game.timeUp);
+  if (game.clock.running && left <= 0) {
+    game.clock.running = false; game.clock.left = 0; game.timeUp = true;
+    if (round.phase === 'select') evaluateTimeUp('gameover');   // jinak se rozečtená otázka dohraje
+    else sync('gameover');
+  }
+}
+setInterval(() => { drawTimer(); drawClock(); }, 100);
 
 // ===================== HERNÍ LOGIKA =====================
-const inRound = () => ['question', 'steal', 'yesno'].includes(round.phase);
-const result = () => Deska.findWinner(game.owner);
+// question = otázka, steal = šance pro soupeře, yesno = černé pole,
+// tiebreak = rozstřel (kdo zmáčkne dřív), tiebreak2 = rozstřel, odpovídá round.team
+const inRound = () => ['question', 'steal', 'yesno', 'tiebreak', 'tiebreak2'].includes(round.phase);
+const onField = () => ['question', 'steal', 'yesno'].includes(round.phase);
+const isTiebreak = () => round.phase === 'tiebreak' || round.phase === 'tiebreak2';
+const count = t => game.owner.filter(v => v === t).length;
+function result() {
+  const r = Deska.findWinner(game.owner);
+  if (r.winner) return { ...r, reason: 'board' };
+  if (game.forced) return { winner: game.forced, winSet: [], reason: game.forcedReason };
+  return { ...r, reason: '' };
+}
 
 function selectCell(i, e) {
   if (e?.shiftKey) return openManual(i);
   const v = game.owner[i];
   if (v === 1 || v === 2) return openManual(i);
-  if (round.phase === 'end') return;
+  if (round.phase === 'end' || isTiebreak() || game.timeUp) return;
   if (inRound()) {
     if (i === round.cell) return;
     if (!confirm('Právě běží otázka. Zrušit ji a vybrat jiné pole? (Otázka zůstane použitá.)')) return;
   }
+  clockStart(); game.started = true;
   const kind = v === 3 ? 'anone' : 'otazka';
   round = { phase: kind === 'anone' ? 'yesno' : 'question', cell: i, q: draw(kind), team: game.turn };
   showAnsProj = false;
@@ -360,15 +442,16 @@ function selectCell(i, e) {
 
 function otherQuestion() {
   if (!inRound()) return;
-  round.q = draw(round.phase === 'yesno' ? 'anone' : 'otazka');
+  round.q = draw(['yesno', 'tiebreak', 'tiebreak2'].includes(round.phase) ? 'anone' : 'otazka');
   showAnsProj = false;
   phaseTimer();
   sync('open');
 }
 
+// tlačítka 1 / 2: význam podle fáze
 function answer(correct) {
   if (!inRound()) return;
-  const { phase, cell, team } = round;
+  const { phase, team } = round;
   if (phase === 'question') {
     if (correct) return finish(team);
     if (settings.steal) { round.phase = 'steal'; phaseTimer(); return sync('wrong'); }
@@ -376,11 +459,18 @@ function answer(correct) {
   }
   if (phase === 'steal') return finish(correct ? other(team) : 3);
   if (phase === 'yesno') return finish(correct ? team : other(team));
+  if (phase === 'tiebreak') {          // 1 = dřív zmáčkl tým 1, 2 = tým 2
+    round.phase = 'tiebreak2'; round.team = correct ? 1 : 2;
+    phaseTimer(); return sync('open');
+  }
+  if (phase === 'tiebreak2') return declareWinner(correct ? team : other(team), 'rozstřel');
 }
 
-// soupeř odmítne odpovídat → pole hned zčerná
+// tlačítko 3: soupeř odmítá (pole zčerná) / v rozstřelu nikdo nezmáčkl
 function refuse() {
   if (round.phase === 'steal') finish(3);
+  // bod 21: nikdo nezmáčkl → špatná odpověď tomu, kdo by volil další otázku
+  else if (round.phase === 'tiebreak') declareWinner(other(game.turn), 'rozstřel');
 }
 
 function finish(owner) {
@@ -389,17 +479,40 @@ function finish(owner) {
   game.owner[round.cell] = owner;
   const cell = round.cell;
   game.turn = other(round.team);
-  timerClear();
+  timerClear(); showAnsProj = false;
   const { winner } = result();
-  round = { phase: winner ? 'end' : 'select', cell: -1, q: null, team: game.turn, last: cell };
   board.pop(cell);
-  sync(winner && !before ? 'win' : owner === 3 ? 'black' : 'team', cell);
+  const sfx = winner && !before ? 'win' : owner === 3 ? 'black' : 'team';
+  if (!winner && game.timeUp) return evaluateTimeUp(sfx, cell);
+  round = { phase: winner ? 'end' : 'select', cell: -1, q: null, team: game.turn, last: cell };
+  if (!winner) phaseTimer();
+  sync(sfx, cell);
+}
+
+// bod 21: po vypršení času vyhrává tým s více poli, při shodě rozstřel ANO / NE
+function evaluateTimeUp(sfx = null, cell = -1) {
+  timerClear(); showAnsProj = false;
+  if (result().winner) { round = { phase: 'end', cell: -1, q: null, team: game.turn }; return sync(sfx, cell); }
+  const a = count(1), b = count(2);
+  if (a !== b) return declareWinner(a > b ? 1 : 2, 'pole', cell);
+  round = { phase: 'tiebreak', cell: -1, q: draw('anone'), team: game.turn };
+  sync(sfx || 'open', cell);
+}
+
+function declareWinner(team, reason, cell = -1) {
+  history.push(JSON.stringify({ game, round: { phase: 'select', cell: -1, q: null, team: game.turn } }));
+  game.forced = team; game.forcedReason = reason;
+  clockPause(); timerClear(); showAnsProj = false;
+  round = { phase: 'end', cell: -1, q: null, team: game.turn };
+  sync('win', cell);
 }
 
 function cancelRound() {
-  if (!inRound()) return;
+  if (!onField()) return;
   round = { phase: 'select', cell: -1, q: null, team: game.turn };
-  timerClear(); showAnsProj = false;
+  showAnsProj = false;
+  if (game.timeUp) return evaluateTimeUp();
+  phaseTimer();
   sync();
 }
 
@@ -428,14 +541,19 @@ document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
 function undo() {
   if (!history.length) return;
   const h = JSON.parse(history.pop());
-  game = h.game; round = h.round?.phase && !['question', 'steal', 'yesno'].includes(h.round.phase) ? h.round : { phase: 'select', cell: -1, q: null, team: game.turn };
+  const { clock, timeUp } = game;               // čas hry se vracením tahů nevrací
+  game = h.game; game.clock = clock; game.timeUp = timeUp;
+  round = { phase: 'select', cell: -1, q: null, team: game.turn };
+  showAnsProj = false; timerClear();
   if (result().winner) round.phase = 'end';
-  timerClear(); showAnsProj = false;
+  else if (game.timeUp) return evaluateTimeUp();
+  else phaseTimer();
   sync();
 }
 function swapTurn() {
-  if (inRound()) return;
-  game.turn = other(game.turn); round.team = game.turn;
+  if (inRound() || round.phase === 'end') return;
+  game.turn = other(game.turn); round.team = game.turn; round.lot = false;
+  phaseTimer();
   sync();
 }
 
@@ -444,24 +562,32 @@ const board = Deska.create($('board'), { onClick: selectCell, onContext: i => op
 const tn = t => game['n' + t];
 const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
-function phaseText(winner) {
+const REASON = { board: '', pole: ' (více polí)', 'rozstřel': ' (rozstřel)' };
+function phaseText(winner, reason) {
   const c = round.cell >= 0 ? Deska.cells[round.cell].id : '';
+  const dohra = game.timeUp && onField() ? ' · čas vypršel, dohrává se' : '';
   switch (round.phase) {
-    case 'question': return `Pole ${c} – odpovídá ${tn(round.team)}`;
-    case 'steal': return `Šance pro ${tn(other(round.team))} – pole ${c}`;
-    case 'yesno': return `Černé pole ${c} – ANO / NE pro ${tn(round.team)}`;
-    case 'end': return `🏆 Vítěz: ${tn(winner)}`;
-    default: return `Vybírá ${tn(game.turn)}`;
+    case 'question': return `Pole ${c} – odpovídá ${tn(round.team)}${dohra}`;
+    case 'steal': return `Šance pro ${tn(other(round.team))} – pole ${c}${dohra}`;
+    case 'yesno': return `Černé pole ${c} – ANO / NE pro ${tn(round.team)}${dohra}`;
+    case 'tiebreak': return `Rozstřel ANO / NE – kdo zmáčkne dřív?`;
+    case 'tiebreak2': return `Rozstřel – odpovídá ${tn(round.team)}`;
+    case 'end': return `🏆 Vítěz: ${tn(winner)}${REASON[reason] || ''}`;
+    default: return round.lot ? `🎲 Los: začíná ${tn(game.turn)}` : `Vybírá ${tn(game.turn)}`;
   }
 }
+const activeTeam = winner => winner || round.phase === 'tiebreak' ? 0
+  : inRound() ? (round.phase === 'steal' ? other(round.team) : round.team) : game.turn;
 
 function sync(sfx = null, popCell = -1) {
-  const { winner, winSet } = result();
+  const { winner, winSet, reason } = result();
   if (winner && round.phase !== 'end' && !inRound()) round.phase = 'end';
-  const ph = phaseText(winner);
+  if (winner) clockPause();
+  const ph = phaseText(winner, reason);
   const phaseColor = round.phase === 'end' ? Deska.colorOf(winner, game.c1, game.c2)
     : round.phase === 'steal' ? game['c' + other(round.team)]
-    : round.phase === 'yesno' ? Deska.BLACK : game['c' + (inRound() ? round.team : game.turn)];
+    : round.phase === 'yesno' || round.phase === 'tiebreak' ? Deska.BLACK
+    : game['c' + (inRound() ? round.team : game.turn)];
 
   // hlavička a deska
   board.render({ owner: game.owner, c1: game.c1, c2: game.c2, winSet, selected: inRound() ? round.cell : -1 });
@@ -469,10 +595,11 @@ function sync(sfx = null, popCell = -1) {
     $('n' + t).value = game['n' + t]; $('c' + t).value = game['c' + t];
     $('team' + t).style.background = hexA(game['c' + t], .28);
     $('s' + t).textContent = game.owner.filter(v => v === t).length;
-    $('team' + t).classList.toggle('active', !winner && (inRound() ? (round.phase === 'steal' ? other(round.team) : round.team) : game.turn) === t);
+    $('team' + t).classList.toggle('active', activeTeam(winner) === t);
   }
   $('turn').textContent = ph;
   $('bSwap').disabled = inRound() || !!winner;
+  drawClock();
 
   // panel
   $('phase').textContent = ph;
@@ -480,12 +607,16 @@ function sync(sfx = null, popCell = -1) {
   $('qbox').classList.toggle('hidden', !inRound());
   $('idle').classList.toggle('hidden', inRound());
   if (round.phase === 'end') {
-    $('idle').innerHTML = `🏆 <b>${esc(tn(winner))}</b> spojil všechny tři strany a vyhrává!<br><br><button class="btn" style="background:#2f5fb3;font-size:20px;padding:12px 24px" onclick="newGame()">Nová hra</button>`;
+    const why = reason === 'pole' ? `Čas hry vypršel a má víc polí (${count(winner)} : ${count(other(winner))})`
+      : reason === 'rozstřel' ? 'Čas hry vypršel a vyhrál rozstřel ANO / NE' : 'Spojil všechny tři strany';
+    $('idle').innerHTML = `🏆 <b>${esc(tn(winner))}</b> vyhrává!<br><small>${why}.</small><br><br><button class="btn" style="background:#2f5fb3;font-size:20px;padding:12px 24px" onclick="newGame()">Nová hra</button>`;
   } else if (!inRound()) {
-    $('idle').innerHTML = `Na tahu je <b>${esc(tn(game.turn))}</b>.<br>Klikni na pole, které si tým vybral.<br><small>Prázdné pole = běžná otázka · černé pole = otázka ANO / NE</small>`;
+    $('idle').innerHTML = `Na tahu je <b>${esc(tn(game.turn))}</b>.<br>Klikni na pole, které si tým vybral.<br>
+      <small>Prázdné pole = běžná otázka · černé pole = otázka ANO / NE${timer.duration ? ' · T = pauza výběru · R = znovu' : ''}</small>`;
   } else {
     const q = round.q;
-    $('qField').textContent = `Pole ${Deska.cells[round.cell].id}` + (round.phase === 'yesno' ? ' · černé pole' : '');
+    $('qField').textContent = isTiebreak() ? 'Rozstřel po vypršení času'
+      : `Pole ${Deska.cells[round.cell].id}` + (round.phase === 'yesno' ? ' · černé pole' : '');
     $('qCat').textContent = q ? catLabel(q) : '';
     $('qCat').style.background = q ? Otazky.colorFor(q.cat) : 'transparent';
     $('qText').textContent = q ? q.text : '⚠ Došly otázky. Obnov je v Nastavení, nebo vyhodnoť pole ručně.';
@@ -497,7 +628,10 @@ function sync(sfx = null, popCell = -1) {
       question: [`✔ Správně → pole pro ${me}`, settings.steal ? `✘ Špatně / bez odpovědi → šance pro ${op}` : `✘ Špatně / bez odpovědi → černé pole`],
       steal: [`✔ ${op} správně → pole pro ${op}`, `✘ ${op} špatně → černé pole`, `⏭ ${op} odmítá → černé pole`],
       yesno: [`✔ Správně → pole pro ${me}`, `✘ Špatně → pole pro ${op}`],
+      tiebreak: [`🔔 Dřív zmáčkl ${tn(1)}`, `🔔 Dřív zmáčkl ${tn(2)}`, `Nikdo → vyhrává ${tn(other(game.turn))}`],
+      tiebreak2: [`✔ Správně → vyhrává ${me}`, `✘ Špatně → vyhrává ${op}`],
     }[round.phase];
+    $('bCancel').disabled = isTiebreak();
     $('bOk').innerHTML = labels[0] + '<kbd>1</kbd>';
     $('bBad').innerHTML = labels[1] + '<kbd>2</kbd>';
     $('bSkip').classList.toggle('hidden', !labels[2]);
@@ -510,16 +644,17 @@ function sync(sfx = null, popCell = -1) {
 }
 
 function send(sfx = null, popCell = -1, info = null) {
-  const { winner, winSet } = info || result();
+  const { winner, winSet, reason } = info?.ph ? info : result();
   const q = inRound() ? round.q : null;
   post({
     type: 'state', id: Math.random().toString(36).slice(2), sfx, pop: popCell,
     view: {
       owner: game.owner, n1: game.n1, n2: game.n2, c1: game.c1, c2: game.c2,
-      turn: game.turn, phase: round.phase, phaseText: info?.ph ?? phaseText(winner),
+      turn: game.turn, phase: round.phase, phaseText: info?.ph ?? phaseText(winner, reason),
       phaseColor: info?.phaseColor ?? '#2f5fb3',
-      active: winner ? 0 : inRound() ? (round.phase === 'steal' ? other(round.team) : round.team) : game.turn,
+      active: activeTeam(winner),
       selected: inRound() ? round.cell : -1,
+      clock: { ...game.clock }, timeUp: game.timeUp,
       cat: q ? catLabel(q) : '', catColor: q ? Otazky.colorFor(q.cat) : '',
       question: settings.showQ && q ? q.text : '',
       answer: showAnsProj && q ? q.ans : '',
@@ -550,6 +685,15 @@ let ngOff = {};
 function newGame() {
   ngOff = { ...settings.off };
   for (const t of [1, 2]) { $('ngn' + t).value = game['n' + t]; $('ngc' + t).value = game['c' + t]; }
+  // naposledy zvolené hodnoty (pokud nejsou v nabídce, přidají se)
+  const setSel = (id, v) => {
+    const s = $(id);
+    if (![...s.options].some(o => o.value === String(v))) s.add(new Option(id === 'ngLimit' ? fmt(v * 1000) : `${v} s`, v));
+    s.value = String(v);
+  };
+  $('ngStarter').value = settings.starter || 'los';
+  setSel('ngLimit', settings.gameLimit);
+  setSel('ngSelect', settings.tSelect);
   $('ngReset').checked = false;
   renderNewGame();
   $('mNew').classList.add('open');
@@ -593,17 +737,24 @@ $('ngManage').onclick = openManager;
 $('ngStart').onclick = () => {
   history.push(JSON.stringify({ game, round: { phase: 'select', cell: -1, q: null, team: game.turn } }));
   settings.off = Object.fromEntries(Object.entries(ngOff).filter(([, v]) => v));
+  settings.starter = $('ngStarter').value;
+  settings.gameLimit = +$('ngLimit').value;
+  settings.tSelect = +$('ngSelect').value;
   store(LS.settings, settings);
   if ($('ngReset').checked) {
     for (const q of [...pool('otazka'), ...pool('anone')]) delete used[q.id];
     store(LS.used, used);
   }
   for (const t of [1, 2]) { game['n' + t] = $('ngn' + t).value.trim() || 'Tým ' + t; game['c' + t] = $('ngc' + t).value; }
-  game.owner = Array(N).fill(0); game.turn = 1;
-  round = { phase: 'select', cell: -1, q: null, team: 1 };
+  game.owner = Array(N).fill(0);
+  const lot = settings.starter === 'los';             // bod 7: o začátku rozhoduje los
+  game.turn = lot ? 1 + Math.floor(Math.random() * 2) : +settings.starter;
+  game.clock = newClock(); game.timeUp = false; game.started = false;
+  game.forced = 0; game.forcedReason = '';
+  round = { phase: 'select', cell: -1, q: null, team: game.turn, lot };
   timerClear(); showAnsProj = false;
   $('mNew').classList.remove('open');
-  sync();
+  sync(lot ? 'open' : null);
 };
 
 // ===================== NASTAVENÍ =====================
@@ -637,6 +788,7 @@ $('bOther').onclick = otherQuestion;
 $('bShowAns').onclick = () => { showAnsProj = !showAnsProj; sync(); };
 $('bCancel').onclick = cancelRound;
 $('bSwap').onclick = swapTurn;
+$('clock').onclick = clockToggle;
 $('bUndo').onclick = undo;
 $('bNew').onclick = newGame;
 $('bList').onclick = openManager;
@@ -667,6 +819,9 @@ document.addEventListener('keydown', e => {
     else if (k === 'o') $('bShowAns').click();
     else if (e.key === 'Escape') cancelRound();
   } else if (e.key === ' ') { e.preventDefault(); swapTurn(); }
+  else if (k === 't') timerToggle();
+  else if (k === 'r') timerRestart();
+  if (k === 'g') clockToggle();
   if (k === 'l') openManager();
   else if (k === 's') openSettings();
   else if (k === 'p') openProjector();
