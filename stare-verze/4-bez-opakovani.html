@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hexkvíz v4</title>
+<style>
+  :root {
+    --bg1: #0b1530;
+    --bg2: #1c3a7a;
+    --empty: #e9edf5;
+    --empty-stroke: #9aa7c2;
+    --black: #2a2a2e;
+    --ok: #1a7f37;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif; color: #fff;
+    background: radial-gradient(ellipse at 50% 40%, var(--bg2), var(--bg1) 75%);
+    display: flex; flex-direction: column; align-items: center; overflow: hidden; user-select: none;
+  }
+  header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; gap: 16px; }
+  .team {
+    display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-radius: 16px;
+    border: 3px solid transparent; transition: .25s; min-width: 270px;
+  }
+  .team.active { border-color: #fff; box-shadow: 0 0 28px rgba(255,255,255,.35); transform: scale(1.04); }
+  .team input[type=text] { background: transparent; border: none; color: #fff; font-size: 24px; font-weight: 700; width: 160px; outline: none; }
+  .team .score { font-size: 30px; font-weight: 800; margin-left: auto; }
+  .team input[type=color] { width: 30px; height: 30px; border: none; padding: 0; background: none; cursor: pointer; }
+  .center { text-align: center; }
+  .center h1 { margin: 0; font-size: 30px; letter-spacing: 3px; }
+  .turn { font-size: 16px; opacity: .9; margin-top: 2px; }
+  main { flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  svg { height: 100%; max-height: calc(100vh - 150px); width: auto; max-width: 96vw; overflow: visible; }
+  .hex { cursor: pointer; transform-box: fill-box; transform-origin: center; }
+  .hex polygon.base { transition: fill .3s; stroke-width: 4; }
+  .hex:hover polygon.base { filter: brightness(1.1); }
+  .hex text { font-size: 34px; font-weight: 800; pointer-events: none; text-anchor: middle; dominant-baseline: central; }
+  .hex .gloss { pointer-events: none; }
+  .hex.pop { animation: pop .5s ease; }
+  @keyframes pop { 0% { transform: scale(1) } 35% { transform: scale(1.2) } 100% { transform: scale(1) } }
+  .hex.win polygon.base { stroke: #ffe24a; stroke-width: 9; animation: glow .8s infinite alternate; }
+  @keyframes glow { from { stroke-opacity: .45 } to { stroke-opacity: 1 } }
+  footer { padding: 10px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  button { font: inherit; font-size: 15px; padding: 8px 16px; border-radius: 10px; border: none; cursor: pointer; background: rgba(255,255,255,.12); color: #fff; }
+  button:hover { filter: brightness(1.15); }
+  .pill { font-size: 14px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.1); }
+  .pill.warn { background: #c0392b; }
+
+  /* okna */
+  .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(5,10,25,.72); z-index: 10; padding: 24px; }
+  .modal.open { display: flex; }
+  .card {
+    background: #fff; color: #1d2b4f; border-radius: 22px; width: min(1000px, 100%); max-height: 100%;
+    padding: 26px 34px; box-shadow: 0 20px 60px rgba(0,0,0,.6); display: flex; flex-direction: column; gap: 16px;
+    animation: rise .25s ease;
+  }
+  @keyframes rise { from { transform: translateY(20px); opacity: 0 } to { transform: none; opacity: 1 } }
+  .meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: #5b6a8c; }
+  .cat { color: #fff; padding: 4px 12px; border-radius: 999px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; }
+  .tag { color: #c0392b; }
+  .q { font-size: clamp(26px, 3.4vw, 42px); font-weight: 700; line-height: 1.25; min-height: 2.4em; }
+  .timer { position: relative; height: 34px; background: #e3e8f2; border-radius: 10px; overflow: hidden; cursor: pointer; }
+  .timer .bar { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #2ecc71, #27ae60); width: 100%; transition: width .1s linear, background .3s; }
+  .timer.low .bar { background: linear-gradient(90deg, #f39c12, #e67e22); }
+  .timer.over .bar { background: #c0392b; width: 100% !important; }
+  .timer.paused .bar { opacity: .5; }
+  .timer span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; color: #1d2b4f; }
+  .timer.over span { color: #fff; }
+  .b-reveal {
+    align-self: center; background: var(--ok); font-size: clamp(20px, 2.4vw, 28px); font-weight: 800;
+    padding: 16px 36px; border-radius: 14px; box-shadow: 0 6px 18px rgba(26,127,55,.35);
+  }
+  .b-reveal.shown { background: #ccd3e0; color: #333; box-shadow: none; font-size: 16px; padding: 8px 18px; }
+  .a { font-size: clamp(22px, 2.8vw, 34px); font-weight: 700; color: var(--ok); background: #e8f6ec; border-radius: 12px; padding: 14px 18px; display: none; }
+  .a.show { display: block; animation: rise .25s ease; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .row button { font-size: 18px; font-weight: 700; padding: 12px 18px; }
+  kbd { opacity: .7; font-family: inherit; font-size: .8em; margin-left: 6px; }
+  .grey { background: #ccd3e0 !important; color: #333 !important; }
+  .b-black { background: var(--black); }
+  .grow { flex: 1; }
+
+  /* nastavení a seznam */
+  .card.wide { width: min(1100px, 100%); }
+  .card h2 { margin: 0; }
+  .scroll { overflow: auto; min-height: 0; }
+  .settings { display: grid; grid-template-columns: auto 1fr; gap: 12px 18px; align-items: center; font-size: 17px; }
+  .settings input[type=number] { width: 90px; font: inherit; padding: 4px 8px; }
+  .settings label { display: inline-flex; gap: 6px; align-items: center; margin-right: 16px; }
+  textarea { width: 100%; min-height: 130px; font: 15px/1.4 Consolas, monospace; padding: 10px; border-radius: 10px; border: 1px solid #c5cde0; }
+  .card .btn { background: #2f5fb3; font-size: 15px; padding: 8px 14px; }
+  .card .btn.red { background: #c0392b; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e3e8f2; vertical-align: top; }
+  th { position: sticky; top: 0; background: #fff; }
+  tr.used td { color: #9aa3b8; }
+  tr.used td:nth-child(3) { text-decoration: line-through; }
+  .tabs { display: flex; gap: 8px; }
+  .tabs button { background: #e3e8f2; color: #333; }
+  .tabs button.on { background: #2f5fb3; color: #fff; }
+
+  .banner { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(0,0,0,.55); z-index: 20; gap: 18px; }
+  .banner.open { display: flex; }
+  .banner h2 { font-size: 66px; margin: 0; text-shadow: 0 4px 20px rgba(0,0,0,.6); animation: pop .6s ease; }
+  .confetti { position: fixed; top: -20px; width: 12px; height: 18px; z-index: 21; pointer-events: none; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="team" id="team1">
+    <input type="color" id="c1" title="Barva týmu">
+    <input type="text" id="n1">
+    <span class="score" id="s1">0</span>
+  </div>
+  <div class="center">
+    <h1>HEXKVÍZ</h1>
+    <div class="turn" id="turn"></div>
+  </div>
+  <div class="team" id="team2">
+    <input type="color" id="c2" title="Barva týmu">
+    <input type="text" id="n2">
+    <span class="score" id="s2">0</span>
+  </div>
+</header>
+
+<main><svg id="board"></svg></main>
+
+<footer>
+  <button id="bSwap">Přepnout tah (Mezerník)</button>
+  <button id="bUndo">Zpět (Ctrl+Z)</button>
+  <button id="bNew">Nová hra</button>
+  <button id="bList">Seznam otázek (L)</button>
+  <button id="bSettings">Nastavení (S)</button>
+  <button id="bFs">Celá obrazovka (F)</button>
+  <span class="pill" id="remain"></span>
+</footer>
+
+<!-- otázka -->
+<div class="modal" id="mQ">
+  <div class="card">
+    <div class="meta">
+      <span id="qField"></span>
+      <span class="tag" id="qTag"></span>
+      <span class="cat" id="qCat"></span>
+    </div>
+    <div class="q" id="qText"></div>
+    <div class="timer" id="timer" title="Kliknutím pozastavíš / spustíš (P)"><div class="bar" id="tBar"></div><span id="tNum"></span></div>
+    <button class="b-reveal" id="bAns">👁 Zobrazit odpověď <kbd>Enter</kbd></button>
+    <div class="a" id="qAns"></div>
+    <div class="row">
+      <button class="grey" id="bOther" title="Zahodí tuto otázku a vytáhne novou">↻ Jiná otázka<kbd>N</kbd></button>
+      <span class="grow"></span>
+      <button class="b-t1" data-v="1"><span></span><kbd>1</kbd></button>
+      <button class="b-t2" data-v="2"><span></span><kbd>2</kbd></button>
+      <button class="b-black" data-v="3">Černé pole<kbd>3</kbd></button>
+      <button class="grey" data-v="0">Vymazat<kbd>0</kbd></button>
+      <button class="grey" id="bClose">Zavřít<kbd>Esc</kbd></button>
+    </div>
+  </div>
+</div>
+
+<!-- seznam otázek -->
+<div class="modal" id="mList">
+  <div class="card wide" style="height: 100%">
+    <div class="meta">
+      <h2>Seznam otázek</h2>
+      <div class="tabs">
+        <button data-f="all" class="on">Všechny</button>
+        <button data-f="used">Použité</button>
+        <button data-f="free">Nepoužité</button>
+      </div>
+      <button class="grey" data-close>Zavřít <kbd>Esc</kbd></button>
+    </div>
+    <div class="scroll"><table><thead><tr><th>#</th><th>Sada / okruh</th><th>Otázka</th><th>Odpověď</th><th>Stav</th></tr></thead><tbody id="listBody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- nastavení -->
+<div class="modal" id="mSet">
+  <div class="card wide">
+    <div class="meta"><h2>Nastavení</h2><button class="grey" data-close>Zavřít <kbd>Esc</kbd></button></div>
+    <div class="settings">
+      <b>Časovač</b><span><input type="number" id="sTimer" min="0" max="300"> sekund (0 = vypnuto)</span>
+      <b>Zvuky</b><span><label><input type="checkbox" id="sSound"> zapnuté</label></span>
+      <b>Sady otázek</b><span id="sSets"></span>
+      <b>Použité otázky</b><span><span id="sStat"></span> &nbsp; <button class="btn red" id="bResetUsed">Obnovit všechny otázky</button></span>
+    </div>
+    <div>
+      <b>Vlastní otázky</b> – jedna na řádek ve tvaru <code>Okruh | Otázka | Odpověď</code> (okruh lze vynechat)
+      <textarea id="sCustom" placeholder="Monitor | Jaké rozlišení má Full HD? | 1920 × 1080"></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn" id="bSaveCustom">Uložit vlastní otázky</button><span id="customInfo"></span></div>
+    </div>
+  </div>
+</div>
+
+<div class="banner" id="banner">
+  <h2 id="winText"></h2>
+  <div style="display:flex;gap:10px">
+    <button id="bannerClose">Zobrazit desku</button>
+    <button id="bannerNew">Nová hra</button>
+  </div>
+</div>
+
+<script>
+// ===================== OTÁZKY =====================
+// Každá otázka: ['Okruh', 'Otázka', 'Odpověď']
+const SETS = {
+  s1: { name: 'Sada 1', q: [
+  ['Obecně', 'Jak se říká zařízení, které se připojuje k počítači zvenku a rozšiřuje jeho možnosti?', 'Periferie (periferní zařízení)'],
+  ['Obecně', 'Je monitor vstupní, nebo výstupní zařízení?', 'Výstupní'],
+  ['Obecně', 'Které zařízení je vstupní i výstupní zároveň: myš, dotykový displej, nebo reproduktor?', 'Dotykový displej'],
+  ['Obecně', 'Jak se jmenuje vlastnost, kdy zařízení po připojení funguje samo bez ručního nastavování?', 'Plug and Play'],
+  ['Monitor', 'Jak se jmenuje nejmenší bod obrazu na monitoru?', 'Pixel'],
+  ['Monitor', 'Jaké rozlišení se označuje jako Full HD?', '1920 × 1080'],
+  ['Monitor', 'Jaké rozlišení má 4K UHD?', '3840 × 2160'],
+  ['Monitor', 'V jakých jednotkách se udává obnovovací frekvence monitoru?', 'V hertzích (Hz)'],
+  ['Monitor', 'V jakých jednotkách se udává úhlopříčka monitoru?', 'V palcích (1″ = 2,54 cm)'],
+  ['Monitor', 'Jak se jmenuje typ LCD panelu s nejlepšími pozorovacími úhly a věrnými barvami?', 'IPS'],
+  ['Monitor', 'Co znamená zkratka OLED?', 'Organic Light-Emitting Diode (organická svítivá dioda)'],
+  ['Monitor', 'Jak se jmenuje starší analogový obrazový konektor, obvykle modrý, s 15 piny?', 'VGA (D-Sub)'],
+  ['Monitor', 'Který digitální konektor přenáší obraz i zvuk a najdeme ho skoro na každé televizi?', 'HDMI'],
+  ['Projektor', 'V jakých jednotkách se udává světelný výkon projektoru?', 'V (ANSI) lumenech'],
+  ['Projektor', 'Jak se jmenuje funkce, která opraví lichoběžníkový tvar obrazu, když projektor stojí šikmo?', 'Keystone (korekce lichoběžníku)'],
+  ['Projektor', 'Jak se jmenuje technologie projektorů, která tvoří obraz pomocí mikrozrcátek?', 'DLP'],
+  ['Projektor', 'Jak se říká projektoru, který promítá velký obraz z malé vzdálenosti od plátna?', 'Short throw (krátkoprojekční)'],
+  ['Projektor', 'Co vyjadřuje kontrastní poměr projektoru?', 'Poměr jasu nejsvětlejší bílé a nejtmavší černé'],
+  ['Myš', 'Kdo je považován za vynálezce počítačové myši?', 'Douglas Engelbart'],
+  ['Myš', 'Co udává hodnota DPI u myši?', 'Citlivost – počet bodů na palec pohybu'],
+  ['Myš', 'Co měly staré myši místo dnešního optického senzoru?', 'Kuličku'],
+  ['Myš', 'Jak se jmenuje myš, u které se otáčí kuličkou prstem a myš sama stojí na místě?', 'Trackball'],
+  ['Myš', 'Co u myši udává polling rate?', 'Kolikrát za sekundu myš posílá počítači svou polohu (Hz)'],
+  ['Myš', 'Jak se jmenuje dotyková plocha na notebooku, která nahrazuje myš?', 'Touchpad'],
+  ['Klávesnice', 'Jak se jmenuje nejrozšířenější rozložení klávesnice podle prvních písmen horní řady?', 'QWERTY'],
+  ['Klávesnice', 'Čím se liší české rozložení QWERTZ od QWERTY?', 'Má prohozená písmena Y a Z'],
+  ['Klávesnice', 'Jak se jmenuje spínač pod každou klávesou mechanické klávesnice?', 'Switch'],
+  ['Klávesnice', 'Na kterých dvou klávesách jsou hmatové výstupky pro orientaci prstů?', 'F a J'],
+  ['Klávesnice', 'Která klávesa zapíná a vypíná numerickou část klávesnice?', 'Num Lock'],
+  ['Klávesnice', 'Co ve Windows udělá klávesová zkratka Win + L?', 'Zamkne počítač'],
+  ['Klávesnice', 'Jak se jmenuje vlastnost klávesnice, která rozpozná libovolný počet současně stisknutých kláves?', 'N-key rollover (anti-ghosting)'],
+  ['Zvuk', 'V jakých jednotkách se udává hladina hlasitosti (akustického tlaku)?', 'V decibelech (dB)'],
+  ['Zvuk', 'Jaký je přibližný frekvenční rozsah lidského sluchu?', '20 Hz až 20 kHz'],
+  ['Zvuk', 'Jak se jmenuje reproduktor určený pro nejhlubší basy?', 'Subwoofer'],
+  ['Zvuk', 'Co znamená označení zvukové soustavy 5.1?', '5 reproduktorů a 1 subwoofer'],
+  ['Zvuk', 'Jak se jmenuje technologie ve sluchátkách, která aktivně potlačuje okolní hluk?', 'ANC (Active Noise Cancelling)'],
+  ['Zvuk', 'V jakých jednotkách se udává impedance sluchátek?', 'V ohmech (Ω)'],
+  ['Zvuk', 'Jaký průměr má nejběžnější jack konektor pro sluchátka?', '3,5 mm'],
+  ['Zvuk', 'Čím se liší aktivní reproduktory od pasivních?', 'Aktivní mají vlastní zesilovač a napájení'],
+  ['Zvuk', 'Jakou barvu má na zvukové kartě výstup pro reproduktory a jakou vstup pro mikrofon?', 'Zelenou a růžovou'],
+  ]},
+  s2: { name: 'Sada 2', q: [
+  ['Obecně', 'Přes jaký univerzální konektor se dnes připojuje většina periferií?', 'USB'],
+  ['Obecně', 'Jak se jmenuje oboustranný (symetrický) USB konektor moderních zařízení?', 'USB-C'],
+  ['Obecně', 'Jak se jmenuje program, který umožňuje operačnímu systému komunikovat s periferií?', 'Ovladač (driver)'],
+  ['Obecně', 'Jak se jmenuje bezdrátová technologie s krátkým dosahem, přes kterou se připojují sluchátka nebo myši?', 'Bluetooth'],
+  ['Monitor', 'Ze kterých tří základních barev se skládá barva každého pixelu?', 'Červená, zelená, modrá (RGB)'],
+  ['Monitor', 'Jak se jmenuje starý typ monitoru s obrazovkou s elektronovým paprskem?', 'CRT'],
+  ['Monitor', 'Co znamená zkratka LCD?', 'Liquid Crystal Display (displej z tekutých krystalů)'],
+  ['Monitor', 'Jaký poměr stran má většina dnešních širokoúhlých monitorů?', '16:9'],
+  ['Monitor', 'Jak se jmenuje digitální obrazový konektor určený hlavně pro počítače, nástupce DVI?', 'DisplayPort'],
+  ['Monitor', 'Co udává doba odezvy monitoru v milisekundách?', 'Jak rychle pixel změní barvu'],
+  ['Monitor', 'Jak se jmenuje technologie NVIDIA, která synchronizuje snímky s monitorem proti trhání obrazu?', 'G-Sync (u AMD FreeSync)'],
+  ['Monitor', 'Co znamená zkratka HDR u monitoru?', 'High Dynamic Range (vysoký dynamický rozsah)'],
+  ['Monitor', 'Jak se jmenuje jednotka jasu displeje, která odpovídá jedné kandele na metr čtvereční?', 'Nit (cd/m²)'],
+  ['Monitor', 'Co udává zkratka PPI?', 'Hustotu pixelů – počet pixelů na palec'],
+  ['Projektor', 'Jak se jmenuje technologie projektoru, ve které světlo prochází třemi LCD panely?', '3LCD'],
+  ['Projektor', 'Kterou součástku klasického projektoru je nutné po určitém počtu hodin provozu vyměnit?', 'Lampu (výbojku)'],
+  ['Projektor', 'Jak se jmenuje zařízení s kamerou, které promítá papírové dokumenty nebo předměty přes projektor?', 'Vizualizér'],
+  ['Projektor', 'K čemu slouží zoom objektivu projektoru?', 'Ke změně velikosti obrazu bez posunutí projektoru'],
+  ['Projektor', 'Co udává projekční poměr (throw ratio)?', 'Poměr vzdálenosti od plátna k šířce obrazu'],
+  ['Myš', 'Jak se jmenuje kolečko na myši, kterým se posouvá stránka?', 'Scroll (rolovací kolečko)'],
+  ['Myš', 'Jak se jmenuje myš tvarovaná tak, aby ruka zůstala v přirozené poloze jako při podání ruky?', 'Vertikální (ergonomická) myš'],
+  ['Myš', 'Kterým tlačítkem myši otevřete odkaz v prohlížeči na nové kartě?', 'Prostředním (kolečkem)'],
+  ['Myš', 'Na jakém povrchu běžná optická myš špatně funguje?', 'Na skle nebo lesklém povrchu'],
+  ['Myš', 'Jak se jmenuje pero, kterým se ovládá grafický tablet nebo dotykový displej?', 'Stylus'],
+  ['Klávesnice', 'Jakou klávesovou zkratkou vložíte zkopírovaný text?', 'Ctrl + V'],
+  ['Klávesnice', 'Jakou klávesovou zkratkou ve Windows přímo otevřete Správce úloh?', 'Ctrl + Shift + Esc'],
+  ['Klávesnice', 'Co dělá klávesa Caps Lock?', 'Trvale zapne psaní velkých písmen'],
+  ['Klávesnice', 'Jak se jmenuje klávesa, která pořídí snímek obrazovky?', 'Print Screen (PrtSc)'],
+  ['Klávesnice', 'Jak napíšete zavináč @ na české klávesnici?', 'Pravý Alt + V'],
+  ['Klávesnice', 'Jak se říká klávesnici bez numerického bloku?', 'TKL (tenkeyless)'],
+  ['Klávesnice', 'Co ve Windows udělá klávesová zkratka Alt + Tab?', 'Přepne mezi otevřenými okny'],
+  ['Klávesnice', 'Kolik funkčních kláves F má standardní klávesnice?', '12 (F1–F12)'],
+  ['Zvuk', 'Je mikrofon vstupní, nebo výstupní zařízení?', 'Vstupní'],
+  ['Zvuk', 'Jak se jmenují sluchátka, která se vkládají přímo do zvukovodu?', 'Pecková / in-ear (špunty)'],
+  ['Zvuk', 'Čím se liší otevřená sluchátka od uzavřených?', 'Otevřená propouštějí zvuk ven i dovnitř, uzavřená izolují'],
+  ['Zvuk', 'Jak se jmenují sluchátka s mikrofonem?', 'Headset'],
+  ['Zvuk', 'Jak se jmenuje reproduktor určený pro vysoké tóny?', 'Výškový reproduktor (tweeter)'],
+  ['Zvuk', 'Co udává vzorkovací frekvence 44,1 kHz?', 'Kolikrát za sekundu se zaznamená vzorek zvuku (kvalita CD)'],
+  ['Zvuk', 'Jak se jmenuje zařízení, které zesiluje signál pro pasivní reproduktory?', 'Zesilovač'],
+  ['Zvuk', 'Jak se jmenuje technologie sluchátek, které přenášejí zvuk přes kosti lebky místo do ucha?', 'Kostní vedení'],
+  ]},
+  s3: { name: 'Sada 3', q: [
+  ['Obecně', 'Jak se jmenuje zařízení, které převádí papírový dokument do digitální podoby?', 'Skener'],
+  ['Obecně', 'Jak se jmenuje rozbočovač, který z jednoho USB portu udělá několik portů?', 'USB hub'],
+  ['Obecně', 'Která verze USB jako první nesla označení SuperSpeed a mívá modrý konektor?', 'USB 3.0'],
+  ['Monitor', 'Jak se označuje rozlišení 2560 × 1440?', 'QHD (1440p)'],
+  ['Monitor', 'Jak se jmenuje vada displeje, kdy jeden bod trvale svítí nebo nesvítí?', 'Vadný (mrtvý) pixel'],
+  ['Monitor', 'Jak se jmenuje standard otvorů pro uchycení monitoru na držák nebo rameno?', 'VESA'],
+  ['Monitor', 'Jak se jmenuje typ LCD panelu s vysokým kontrastem, ale horšími pozorovacími úhly než IPS?', 'VA'],
+  ['Monitor', 'Jak se jmenuje vada OLED displeje, kdy po dlouhém zobrazení statického obrazu zůstane jeho stopa?', 'Vypálení (burn-in)'],
+  ['Monitor', 'Jak se říká monitorům s poměrem stran 21:9?', 'Ultrawide'],
+  ['Monitor', 'Jak se jmenuje obrazový konektor s bílou koncovkou, který se používal před HDMI a DisplayPortem?', 'DVI'],
+  ['Monitor', 'Čím je podsvícen dnešní LCD monitor?', 'LED diodami'],
+  ['Projektor', 'Jak se jmenuje bílá plocha, na kterou projektor promítá obraz?', 'Projekční plátno'],
+  ['Projektor', 'Co znamená nativní rozlišení projektoru?', 'Skutečný počet pixelů zobrazovacího čipu'],
+  ['Projektor', 'Proč se po vypnutí projektoru s lampou ještě chvíli točí ventilátor?', 'Dochlazuje lampu'],
+  ['Projektor', 'Jak se jmenuje tabule, kterou lze spolu s projektorem ovládat dotykem nebo perem?', 'Interaktivní tabule'],
+  ['Projektor', 'Co se stane s obrazem, když projektor oddálíte od plátna?', 'Obraz se zvětší'],
+  ['Myš', 'Jak se jmenuje akce, kdy podržíte tlačítko myši a přetáhnete objekt jinam?', 'Drag and drop (táhni a pusť)'],
+  ['Myš', 'Jakou barvu má nejčastěji světlo pod optickou myší?', 'Červenou'],
+  ['Myš', 'Jak se jmenuje malý tyčinkový ovladač uprostřed klávesnice notebooků ThinkPad?', 'TrackPoint'],
+  ['Myš', 'Jak se jmenuje malý USB přijímač bezdrátové myši?', 'Dongle (USB přijímač)'],
+  ['Klávesnice', 'Jakou klávesovou zkratkou vrátíte poslední akci?', 'Ctrl + Z'],
+  ['Klávesnice', 'Jakou klávesovou zkratkou označíte vše?', 'Ctrl + A'],
+  ['Klávesnice', 'Která klávesa přepíná mezi vkládáním a přepisováním textu?', 'Insert'],
+  ['Klávesnice', 'Co ve Windows udělá klávesová zkratka Win + D?', 'Zobrazí plochu'],
+  ['Klávesnice', 'Co ve Windows otevře klávesová zkratka Win + E?', 'Průzkumník souborů'],
+  ['Klávesnice', 'Jak se jmenuje klávesnice zobrazená na obrazovce, na které se píše myší nebo dotykem?', 'Klávesnice na obrazovce (virtuální)'],
+  ['Klávesnice', 'Jak se jmenují odnímatelné čepičky kláves mechanické klávesnice?', 'Keycaps'],
+  ['Zvuk', 'Jak se jmenuje jack se čtyřmi kontakty, který přenáší zvuk do sluchátek i z mikrofonu?', 'TRRS (4pólový jack)'],
+  ['Zvuk', 'Jak se jmenuje pískání, které vznikne, když mikrofon snímá zvuk z reproduktoru?', 'Zpětná vazba (feedback)'],
+  ['Zvuk', 'Jak se jmenují sluchátka, jejichž náušníky obepínají celé ucho?', 'Over-ear'],
+  ['Zvuk', 'Co znamená, že je reproduktor dvoupásmový?', 'Má zvlášť měnič pro basy a středy a zvlášť pro výšky'],
+  ['Zvuk', 'Jak se jmenuje prostorový zvukový formát firmy Dolby, který přidává zvuk i shora?', 'Dolby Atmos'],
+  ['Zvuk', 'Jak se jmenuje součástka, která převádí digitální signál na analogový zvuk?', 'DAC (D/A převodník)'],
+  ['Zvuk', 'Co znamená zkratka TWS u bezdrátových sluchátek?', 'True Wireless Stereo'],
+  ]},
+};
+const CAT_COLORS = { 'Obecně': '#7f8c8d', 'Monitor': '#2f5fb3', 'Projektor': '#8e44ad', 'Myš': '#16a085', 'Klávesnice': '#d35400', 'Zvuk': '#c0392b' };
+
+// ===================== ÚLOŽIŠTĚ =====================
+const LS = { game: 'hexkviz-v4-game', used: 'hexkviz-v4-used', settings: 'hexkviz-v4-settings', custom: 'hexkviz-v4-custom' };
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+let settings = { timer: 30, sound: true, sets: { s1: true, s2: true, s3: true, custom: true }, ...load(LS.settings, {}) };
+let custom = load(LS.custom, []);
+let used = load(LS.used, {});            // id otázky -> pořadí, kdy byla otevřena
+const saveUsed = () => store(LS.used, used);
+
+const hash = s => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0; return (h >>> 0).toString(36); };
+function allQuestions(onlyActive = true) {
+  const out = [];
+  for (const [k, s] of Object.entries(SETS))
+    if (!onlyActive || settings.sets[k]) s.q.forEach((q, i) => out.push({ id: `${k}-${i}`, set: s.name, cat: q[0], text: q[1], ans: q[2] }));
+  if (!onlyActive || settings.sets.custom)
+    custom.forEach(q => out.push({ id: 'c-' + hash(q.join('|')), set: 'Vlastní', cat: q[0], text: q[1], ans: q[2] }));
+  return out;
+}
+const freeQuestions = () => allQuestions().filter(q => !(q.id in used));
+function drawQuestion() {
+  const free = freeQuestions();
+  if (!free.length) return null;
+  const q = free[Math.floor(Math.random() * free.length)];
+  used[q.id] = Object.keys(used).length + 1;   // otevřená = spotřebovaná, už se nevrátí
+  saveUsed(); updateRemain();
+  return q;
+}
+
+// ===================== DESKA =====================
+const ROWS = 7, SIZE = 58, W = Math.sqrt(3) * SIZE, VS = SIZE * 1.5;
+const cells = [];
+for (let r = 0, id = 1; r < ROWS; r++) for (let c = 0; c <= r; c++) cells.push({ id: id++, r, c });
+const N = cells.length;
+const idx = (r, c) => (r < 0 || r >= ROWS || c < 0 || c > r) ? -1 : r * (r + 1) / 2 + c;
+const neighbors = cells.map(({ r, c }) =>
+  [[r, c - 1], [r, c + 1], [r - 1, c - 1], [r - 1, c], [r + 1, c], [r + 1, c + 1]].map(([a, b]) => idx(a, b)).filter(i => i >= 0));
+const sides = ({ r, c }) => ({ L: c === 0, R: c === r, B: r === ROWS - 1 });
+
+let game = { owner: Array(N).fill(0), turn: 1, n1: 'Tým 1', n2: 'Tým 2', c1: '#f28c1b', c2: '#2f7de1', ...load(LS.game, {}) };
+if (game.owner?.length !== N) game.owner = Array(N).fill(0);
+let history = [];
+let winner = 0, winSet = new Set();
+
+const svg = document.getElementById('board');
+const pad = 14;
+const width = ROWS * W + pad * 2, height = (ROWS - 1) * VS + SIZE * 2 + pad * 2;
+svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+svg.innerHTML = `<defs><linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".5" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".15"/></linearGradient>
+  <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity=".35"/></filter></defs>`;
+const hexPts = (cx, cy, s) => Array.from({ length: 6 }, (_, k) => {
+  const a = Math.PI / 180 * (60 * k - 90);
+  return `${cx + s * Math.cos(a)},${cy + s * Math.sin(a)}`;
+}).join(' ');
+const els = cells.map((cell, i) => {
+  const cx = width / 2 + (cell.c - cell.r / 2) * W, cy = pad + SIZE + cell.r * VS;
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.classList.add('hex');
+  g.innerHTML = `<polygon class="base" filter="url(#sh)" points="${hexPts(cx, cy, SIZE - 3)}"/>
+    <polygon class="gloss" fill="url(#gloss)" points="${hexPts(cx, cy, SIZE - 7)}"/>
+    <text x="${cx}" y="${cy}">${cell.id}</text>`;
+  g.addEventListener('click', () => openField(i));
+  g.addEventListener('animationend', () => g.classList.remove('pop'));
+  svg.appendChild(g);
+  return g;
+});
+
+const BLACK = '#2a2a2e';
+const colorOf = v => v === 1 ? game.c1 : v === 2 ? game.c2 : v === 3 ? BLACK : null;
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+const $ = id => document.getElementById(id);
+
+function render() {
+  checkWin();
+  els.forEach((g, i) => {
+    const v = game.owner[i];
+    const p = g.querySelector('.base'), t = g.querySelector('text');
+    p.setAttribute('fill', v ? colorOf(v) : 'var(--empty)');
+    p.setAttribute('stroke', v ? 'rgba(255,255,255,.9)' : 'var(--empty-stroke)');
+    t.setAttribute('fill', v ? '#fff' : '#1d2b4f');
+    g.classList.toggle('win', winSet.has(i));
+  });
+  for (const t of [1, 2]) {
+    $('n' + t).value = game['n' + t]; $('c' + t).value = game['c' + t];
+    $('team' + t).style.background = hexA(game['c' + t], .28);
+    $('s' + t).textContent = game.owner.filter(v => v === t).length;
+    $('team' + t).classList.toggle('active', game.turn === t && !winner);
+    const b = document.querySelector('.b-t' + t);
+    b.style.background = game['c' + t]; b.querySelector('span').textContent = game['n' + t];
+  }
+  $('turn').textContent = winner ? `🏆 Vítěz: ${game['n' + winner]}` : `Na tahu: ${game['n' + game.turn]}`;
+  store(LS.game, game);
+}
+function updateRemain() {
+  const n = freeQuestions().length;
+  $('remain').textContent = `Nepoužitých otázek: ${n}`;
+  $('remain').classList.toggle('warn', n < 10);
+}
+
+function checkWin() {
+  winner = 0; winSet = new Set();
+  for (const team of [1, 2]) {
+    const seen = new Set();
+    for (let i = 0; i < N; i++) {
+      if (game.owner[i] !== team || seen.has(i)) continue;
+      const comp = [], stack = [i]; seen.add(i);
+      let L = false, R = false, B = false;
+      while (stack.length) {
+        const j = stack.pop(); comp.push(j);
+        const s = sides(cells[j]); L ||= s.L; R ||= s.R; B ||= s.B;
+        for (const k of neighbors[j]) if (!seen.has(k) && game.owner[k] === team) { seen.add(k); stack.push(k); }
+      }
+      if (L && R && B) { winner = team; comp.forEach(j => winSet.add(j)); }
+    }
+    if (winner) return;
+  }
+}
+
+// ===================== ZVUKY =====================
+let actx;
+function tone(freq, dur, type = 'sine', vol = .2, when = 0) {
+  if (!settings.sound) return;
+  try {
+    actx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const t = actx.currentTime + when, o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+  } catch {}
+}
+const SFX = {
+  open: () => tone(660, .12, 'triangle', .15),
+  team: () => { tone(523, .15); tone(784, .3, 'sine', .2, .12); },
+  black: () => tone(150, .45, 'sawtooth', .13),
+  tick: () => tone(1100, .05, 'square', .06),
+  buzz: () => tone(110, .8, 'square', .16),
+  win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .4, 'triangle', .2, i * .14)),
+};
+
+// ===================== ČASOVAČ =====================
+let tLeft = 0, tInt = null, tPaused = false, tLastSec = -1;
+function startTimer() {
+  stopTimer();
+  const tm = $('timer');
+  tm.style.display = settings.timer > 0 ? '' : 'none';
+  if (settings.timer <= 0) return;
+  tLeft = settings.timer * 1000; tPaused = false; tLastSec = -1;
+  tm.classList.remove('over', 'low', 'paused');
+  drawTimer();
+  tInt = setInterval(() => {
+    if (tPaused) return;
+    tLeft -= 100;
+    if (tLeft <= 0) { tLeft = 0; drawTimer(); stopTimer(); tm.classList.add('over'); $('tNum').textContent = 'ČAS VYPRŠEL'; SFX.buzz(); return; }
+    drawTimer();
+  }, 100);
+}
+function drawTimer() {
+  const sec = Math.ceil(tLeft / 1000);
+  $('tBar').style.width = (tLeft / (settings.timer * 1000) * 100) + '%';
+  $('tNum').textContent = tPaused ? `${sec} s – pozastaveno` : `${sec} s`;
+  $('timer').classList.toggle('low', sec <= 5);
+  if (sec <= 5 && sec > 0 && sec !== tLastSec && !tPaused) SFX.tick();
+  tLastSec = sec;
+}
+function stopTimer() { clearInterval(tInt); tInt = null; }
+function togglePause() {
+  if (!tInt) return;
+  tPaused = !tPaused; $('timer').classList.toggle('paused', tPaused); drawTimer();
+}
+$('timer').onclick = togglePause;
+
+// ===================== OKNO S OTÁZKOU =====================
+let openCell = -1, current = null;
+function openField(i) {
+  openCell = i;
+  const v = game.owner[i];
+  $('qField').textContent = `Pole ${cells[i].id}`;
+  if (v === 1 || v === 2) {
+    // obsazené pole – jen oprava, žádná nová otázka
+    current = null;
+    $('qTag').textContent = 'Oprava pole';
+    $('qCat').style.display = 'none';
+    $('qText').textContent = `Pole patří týmu ${game['n' + v]}. Chceš ho změnit?`;
+    $('bAns').style.display = 'none'; $('bOther').style.display = 'none'; $('qAns').classList.remove('show');
+    stopTimer(); $('timer').style.display = 'none';
+  } else {
+    $('qTag').textContent = v === 3 ? 'Náhradní otázka (černé pole)' : '';
+    nextQuestion();
+  }
+  $('mQ').classList.add('open');
+}
+function nextQuestion() {
+  current = drawQuestion();
+  $('qAns').classList.remove('show');
+  if (!current) {
+    $('qCat').style.display = 'none';
+    $('qText').textContent = '⚠ Došly všechny otázky. Obnov je v Nastavení, nebo pole přiděl ručně.';
+    $('bAns').style.display = 'none'; $('bOther').style.display = 'none';
+    stopTimer(); $('timer').style.display = 'none';
+    return;
+  }
+  $('qCat').style.display = '';
+  $('qCat').textContent = current.cat;
+  $('qCat').style.background = CAT_COLORS[current.cat] || '#34495e';
+  $('qText').textContent = current.text;
+  $('qAns').textContent = current.ans;
+  $('bAns').style.display = ''; $('bOther').style.display = '';
+  updateRevealBtn();
+  SFX.open();
+  startTimer();
+}
+function updateRevealBtn() {
+  const shown = $('qAns').classList.contains('show');
+  $('bAns').classList.toggle('shown', shown);
+  $('bAns').innerHTML = shown ? 'Skrýt odpověď <kbd>Enter</kbd>' : '👁 Zobrazit odpověď <kbd>Enter</kbd>';
+}
+function toggleAnswer() {
+  if (!current) return;
+  $('qAns').classList.toggle('show'); updateRevealBtn();
+  if ($('qAns').classList.contains('show')) stopTimer();
+}
+function closeQuestion() { $('mQ').classList.remove('open'); openCell = -1; current = null; stopTimer(); }
+
+function assign(v) {
+  if (openCell < 0) return;
+  const i = openCell; closeQuestion();
+  if (game.owner[i] === v) return;
+  const prevWinner = winner;
+  history.push(JSON.stringify(game));
+  game.owner[i] = v;
+  if (v !== 0) game.turn = game.turn === 1 ? 2 : 1;
+  if (v === 1 || v === 2) { game.turn = v === 1 ? 2 : 1; SFX.team(); }
+  if (v === 3) SFX.black();
+  els[i].classList.remove('pop'); void els[i].getBBox(); els[i].classList.add('pop');
+  render();
+  if (winner && !prevWinner) showWin();
+}
+document.querySelectorAll('#mQ [data-v]').forEach(b => b.onclick = () => assign(+b.dataset.v));
+$('bAns').onclick = toggleAnswer;
+$('bOther').onclick = nextQuestion;
+$('bClose').onclick = closeQuestion;
+$('mQ').addEventListener('mousedown', e => { if (e.target === $('mQ')) closeQuestion(); });
+
+// ===================== VÝHRA =====================
+function showWin() {
+  $('winText').textContent = `🏆 Vyhrává ${game['n' + winner]}!`;
+  $('winText').style.color = colorOf(winner);
+  $('banner').classList.add('open');
+  SFX.win();
+  for (let k = 0; k < 120; k++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = [game.c1, game.c2, '#ffe24a', '#fff'][k % 4];
+    c.style.animationDuration = 2 + Math.random() * 2.5 + 's';
+    c.style.animationDelay = Math.random() * .8 + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 5500);
+  }
+}
+$('bannerClose').onclick = () => $('banner').classList.remove('open');
+$('bannerNew').onclick = () => { $('banner').classList.remove('open'); newGame(); };
+
+// ===================== SEZNAM OTÁZEK =====================
+let listFilter = 'all';
+function renderList() {
+  const rows = allQuestions(false).map(q => ({ ...q, order: used[q.id] }))
+    .filter(q => listFilter === 'all' || (listFilter === 'used' ? q.order : !q.order));
+  if (listFilter === 'used') rows.sort((a, b) => a.order - b.order);
+  const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  $('listBody').innerHTML = rows.map((q, k) => `<tr class="${q.order ? 'used' : ''}">
+    <td>${k + 1}</td><td>${esc(q.set)} · ${esc(q.cat)}</td><td>${esc(q.text)}</td><td><b>${esc(q.ans)}</b></td>
+    <td>${q.order ? `použitá (${q.order}.)` : 'volná'}</td></tr>`).join('') || '<tr><td colspan="5">Nic tu není.</td></tr>';
+}
+document.querySelectorAll('#mList .tabs button').forEach(b => b.onclick = () => {
+  listFilter = b.dataset.f;
+  document.querySelectorAll('#mList .tabs button').forEach(x => x.classList.toggle('on', x === b));
+  renderList();
+});
+function openList() { renderList(); $('mList').classList.add('open'); }
+
+// ===================== NASTAVENÍ =====================
+function openSettings() {
+  $('sTimer').value = settings.timer;
+  $('sSound').checked = settings.sound;
+  const setsAll = { ...Object.fromEntries(Object.entries(SETS).map(([k, s]) => [k, `${s.name} (${s.q.length})`])), custom: `Vlastní (${custom.length})` };
+  $('sSets').innerHTML = Object.entries(setsAll).map(([k, label]) =>
+    `<label><input type="checkbox" data-set="${k}" ${settings.sets[k] ? 'checked' : ''}> ${label}</label>`).join('');
+  $('sSets').querySelectorAll('input').forEach(inp => inp.onchange = () => { settings.sets[inp.dataset.set] = inp.checked; saveSettings(); });
+  $('sCustom').value = custom.map(q => q.join(' | ')).join('\n');
+  $('customInfo').textContent = '';
+  refreshStat();
+  $('mSet').classList.add('open');
+}
+function refreshStat() {
+  const all = allQuestions().length, free = freeQuestions().length;
+  $('sStat').textContent = `${all - free} použito, ${free} volných (z ${all} ve vybraných sadách)`;
+}
+function saveSettings() { store(LS.settings, settings); updateRemain(); refreshStat(); }
+$('sTimer').oninput = () => { settings.timer = Math.max(0, Math.min(300, +$('sTimer').value || 0)); saveSettings(); };
+$('sSound').onchange = () => { settings.sound = $('sSound').checked; saveSettings(); };
+$('bResetUsed').onclick = () => {
+  if (!confirm('Opravdu označit všechny otázky znovu jako nepoužité?')) return;
+  used = {}; saveUsed(); saveSettings();
+};
+$('bSaveCustom').onclick = () => {
+  custom = $('sCustom').value.split('\n').map(l => l.split('|').map(s => s.trim())).filter(p => p.length >= 2 && p.every(Boolean))
+    .map(p => p.length === 2 ? ['Vlastní', p[0], p[1]] : [p[0], p[1], p.slice(2).join(' | ')]);
+  store(LS.custom, custom);
+  $('customInfo').textContent = `Uloženo ${custom.length} vlastních otázek.`;
+  openSettings(); $('customInfo').textContent = `Uloženo ${custom.length} vlastních otázek.`;
+  updateRemain();
+};
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.remove('open'));
+
+// ===================== OVLÁDÁNÍ =====================
+function undo() { if (history.length) { game = JSON.parse(history.pop()); render(); } }
+function newGame() {
+  if (game.owner.some(v => v) && !confirm('Opravdu začít novou hru? (Použité otázky zůstanou použité.)')) return;
+  history.push(JSON.stringify(game));
+  game.owner = Array(N).fill(0); game.turn = 1; render();
+}
+$('bSwap').onclick = () => { game.turn = game.turn === 1 ? 2 : 1; render(); };
+$('bUndo').onclick = undo;
+$('bNew').onclick = newGame;
+$('bList').onclick = openList;
+$('bSettings').onclick = openSettings;
+const toggleFs = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+$('bFs').onclick = toggleFs;
+for (const t of [1, 2]) {
+  $('n' + t).oninput = () => { game['n' + t] = $('n' + t).value || 'Tým ' + t; render(); };
+  $('c' + t).oninput = () => { game['c' + t] = $('c' + t).value; render(); };
+}
+
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) { if (e.key === 'Escape') e.target.blur(); return; }
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); return; }
+  if ($('mQ').classList.contains('open')) {
+    if (['0', '1', '2', '3'].includes(e.key)) assign(+e.key);
+    else if (e.key === 'Enter') { e.preventDefault(); toggleAnswer(); }
+    else if (k === 'n' && current) nextQuestion();
+    else if (k === 'p') togglePause();
+    else if (e.key === 'Escape') closeQuestion();
+    return;
+  }
+  const openModal = document.querySelector('.modal.open');
+  if (openModal) { if (e.key === 'Escape') openModal.classList.remove('open'); return; }
+  if (e.key === 'Escape') $('banner').classList.remove('open');
+  if (e.key === ' ') { e.preventDefault(); $('bSwap').click(); }
+  if (k === 'f') toggleFs();
+  if (k === 'l') openList();
+  if (k === 's') openSettings();
+});
+
+render();
+updateRemain();
+</script>
+</body>
+</html>

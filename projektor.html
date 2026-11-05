@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hexkvíz – projektor</title>
+<link rel="stylesheet" href="css/spolecne.css">
+<style>
+  body { display: grid; grid-template-rows: auto 1fr; height: 100vh; cursor: default; }
+  header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 2vw; padding: 2vh 3vw 0; }
+  header .team:last-child { justify-self: end; }
+  .team { min-width: 26vw; padding: 1.4vh 1.6vw; }
+  .team .name { font-size: 4vh; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 20vw; }
+  .team .score { font-size: 5vh; }
+  .team.active { transform: scale(1.05); }
+  .title { font-size: 3.4vh; font-weight: 800; letter-spacing: .5vh; opacity: .85; text-align: center; }
+
+  main { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; min-height: 0; padding: 1vh 2vw 2vh; gap: 1vw; }
+  .boardBox { height: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .boardBox svg { height: 100%; max-height: calc(100vh - 14vh); width: auto; max-width: 56vw; }
+
+  /* časovač */
+  .side { display: flex; flex-direction: column; align-items: center; gap: 2vh; padding-top: 2vh; }
+  .ring { position: relative; width: 24vh; height: 24vh; transition: opacity .3s; }
+  .ring.hidden { opacity: 0; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 10; }
+  .ring .track { stroke: rgba(255,255,255,.15); }
+  .ring .prog { stroke: #2ecc71; stroke-linecap: round; transition: stroke .3s; }
+  .ring.low .prog { stroke: #f39c12; }
+  .ring.over .prog { stroke: var(--bad); }
+  .ring .num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 9vh; font-weight: 800; }
+  .ring.over .num { font-size: 5vh; color: #ff6b5b; animation: blink .5s infinite alternate; }
+  .ring.paused .num { opacity: .5; }
+  @keyframes blink { from { opacity: .4 } to { opacity: 1 } }
+
+  /* fáze a otázka */
+  .phase { font-size: 3.6vh; font-weight: 800; padding: 1.6vh 1.6vw; border-radius: 2vh; text-align: center; box-shadow: 0 1vh 3vh rgba(0,0,0,.3); max-width: 100%; }
+  .info { display: flex; flex-direction: column; align-items: center; gap: 1.6vh; width: 100%; }
+  .info .cat { font-size: 2.2vh; padding: .6vh 1.4vw; }
+  .qtext { background: rgba(255,255,255,.95); color: #1d2b4f; font-size: 3vh; font-weight: 700; line-height: 1.3; padding: 2vh 1.4vw; border-radius: 2vh; text-align: center; }
+  .anstext { background: #e8f6ec; color: var(--ok); font-size: 3.4vh; font-weight: 800; padding: 1.6vh 1.4vw; border-radius: 2vh; text-align: center; animation: pop .5s ease; }
+  .hidden { display: none !important; }
+
+  .wait { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh; background: rgba(5,10,25,.85); z-index: 30; font-size: 3vh; text-align: center; padding: 4vw; }
+  .wait h2 { font-size: 6vh; margin: 0; }
+  .hint { position: fixed; bottom: 1.4vh; right: 1.4vw; font-size: 1.8vh; opacity: .55; transition: opacity 1s; }
+  .hint.gone { opacity: 0; }
+
+  .banner { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.45); z-index: 20; pointer-events: none; }
+  .banner.open { display: flex; }
+  .banner h2 { font-size: 11vh; margin: 0; text-align: center; text-shadow: 0 .6vh 3vh rgba(0,0,0,.7); animation: pop .7s ease; }
+</style>
+</head>
+<body>
+<header>
+  <div class="team" id="team1"><span class="name" id="n1">Tým 1</span><span class="score" id="s1">0</span></div>
+  <div class="title">HEXKVÍZ</div>
+  <div class="team" id="team2"><span class="name" id="n2">Tým 2</span><span class="score" id="s2">0</span></div>
+</header>
+
+<main>
+  <div class="side">
+    <div class="ring hidden" id="ring">
+      <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="52"/><circle class="prog" id="prog" cx="60" cy="60" r="52"/></svg>
+      <div class="num" id="tNum"></div>
+    </div>
+  </div>
+  <div class="boardBox"><svg id="board"></svg></div>
+  <div class="side">
+    <div class="info">
+      <div class="phase" id="phase">Čekám na moderátora…</div>
+      <span class="cat hidden" id="cat"></span>
+      <div class="qtext hidden" id="qtext"></div>
+      <div class="anstext hidden" id="anstext"></div>
+    </div>
+  </div>
+</main>
+
+<div class="banner" id="banner"><h2 id="winText"></h2></div>
+
+<div class="wait" id="wait">
+  <h2>📽 Projektor</h2>
+  <div>Čekám na spojení s moderátorem…</div>
+  <div style="opacity:.7;font-size:2.2vh">Otevři <b>index.html</b> a klikni na <b>Otevřít projektor</b>.<br>Toto okno přetáhni na projektor a stiskni <b>F</b> (celá obrazovka).</div>
+</div>
+<div class="hint" id="hint">F nebo dvojklik = celá obrazovka</div>
+
+<script src="js/deska.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const board = Deska.create($('board'));
+$('board').classList.add('static');
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+
+let view = null, gotState = false;
+const seen = [];
+
+// ===================== ZVUKY =====================
+let actx;
+function tone(freq, dur, type = 'sine', vol = .2, when = 0) {
+  if (!view?.sound) return;
+  try {
+    actx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const t = actx.currentTime + when, o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+  } catch {}
+}
+const SFX = {
+  open: () => { tone(660, .12, 'triangle', .18); tone(880, .15, 'triangle', .15, .1); },
+  team: () => { tone(523, .15); tone(784, .3, 'sine', .22, .12); },
+  wrong: () => { tone(330, .2, 'sawtooth', .12); tone(247, .35, 'sawtooth', .12, .18); },
+  black: () => tone(150, .5, 'sawtooth', .14),
+  tick: () => tone(1100, .05, 'square', .07),
+  buzz: () => tone(110, .9, 'square', .18),
+  win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .45, 'triangle', .22, i * .14)),
+};
+// prohlížeč povolí zvuk až po první interakci s oknem
+const unlock = () => { try { actx ||= new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch {} };
+addEventListener('click', unlock); addEventListener('keydown', unlock);
+
+// ===================== SPOJENÍ =====================
+let bc = null;
+try { bc = new BroadcastChannel('azkviz'); bc.onmessage = e => onMsg(e.data); } catch {}
+addEventListener('message', e => onMsg(e.data));
+function hello() {
+  const msg = { type: 'hello', need: !gotState };
+  try { window.opener?.postMessage(msg, '*'); } catch {}
+  try { bc?.postMessage(msg); } catch {}
+}
+hello(); setInterval(hello, 2000);
+
+function onMsg(d) {
+  if (d?.type !== 'state' || seen.includes(d.id)) return;
+  seen.push(d.id); if (seen.length > 60) seen.shift();
+  view = d.view; gotState = true;
+  render();
+  if (d.pop >= 0) board.pop(d.pop);
+  if (d.sfx) SFX[d.sfx]?.();
+  if (d.sfx === 'win') celebrate();
+}
+
+// ===================== VYKRESLENÍ =====================
+function render() {
+  $('wait').classList.add('hidden');
+  const v = view;
+  board.render({ owner: v.owner, c1: v.c1, c2: v.c2, winSet: v.winSet, selected: v.selected });
+  for (const t of [1, 2]) {
+    $('n' + t).textContent = v['n' + t];
+    $('s' + t).textContent = v.owner.filter(x => x === t).length;
+    $('team' + t).style.background = hexA(v['c' + t], .3);
+    $('team' + t).style.borderColor = v.active === t ? '#fff' : 'transparent';
+    $('team' + t).classList.toggle('active', v.active === t);
+  }
+  $('phase').textContent = v.phaseText;
+  $('phase').style.background = v.phaseColor;
+  $('cat').classList.toggle('hidden', !v.cat);
+  $('cat').textContent = v.cat; $('cat').style.background = v.catColor;
+  $('qtext').classList.toggle('hidden', !v.question);
+  $('qtext').textContent = v.question;
+  $('anstext').classList.toggle('hidden', !v.answer);
+  $('anstext').textContent = v.answer ? '✔ ' + v.answer : '';
+  if (v.winner) {
+    $('winText').textContent = `🏆 Vyhrává ${v['n' + v.winner]}!`;
+    $('winText').style.color = Deska.colorOf(v.winner, v.c1, v.c2);
+  }
+  $('banner').classList.toggle('open', !!v.winner);
+}
+
+// časovač – počítá se lokálně podle času konce, který poslal moderátor
+const C = 2 * Math.PI * 52;
+$('prog').style.strokeDasharray = C;
+let lastSec = -1, lastTimerId = -1;
+function tick() {
+  requestAnimationFrame(tick);
+  const ring = $('ring');
+  const t = view?.timer;
+  if (!t || !t.duration) { ring.classList.add('hidden'); return; }
+  ring.classList.remove('hidden');
+  const left = t.running ? Math.max(0, t.endsAt - Date.now()) : t.remaining;
+  const sec = Math.ceil(left / 1000);
+  $('prog').style.strokeDashoffset = C * (1 - left / t.duration);
+  ring.classList.toggle('low', sec <= 5 && left > 0);
+  ring.classList.toggle('over', left <= 0);
+  ring.classList.toggle('paused', !t.running && left > 0);
+  $('tNum').textContent = left <= 0 ? 'ČAS!' : sec;
+  if (t.id !== lastTimerId) { lastTimerId = t.id; lastSec = sec; }
+  if (t.running && sec !== lastSec && sec <= 5 && sec > 0) SFX.tick();
+  lastSec = sec;
+}
+tick();
+
+function celebrate() {
+  for (let k = 0; k < 160; k++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = [view.c1, view.c2, '#ffe24a', '#fff'][k % 4];
+    c.style.animationDuration = 2 + Math.random() * 3 + 's';
+    c.style.animationDelay = Math.random() * 1 + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 6500);
+  }
+}
+
+// celá obrazovka
+const toggleFs = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {});
+addEventListener('keydown', e => { if (e.key.toLowerCase() === 'f') toggleFs(); });
+addEventListener('dblclick', toggleFs);
+setTimeout(() => $('hint').classList.add('gone'), 8000);
+document.addEventListener('fullscreenchange', () => { document.body.style.cursor = document.fullscreenElement ? 'none' : 'default'; });
+</script>
+</body>
+</html>

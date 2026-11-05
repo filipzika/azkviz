@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hexkvíz – moderátor</title>
+<link rel="stylesheet" href="css/spolecne.css">
+<style>
+  body { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
+  header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; padding: 12px 20px; }
+  header .team:last-child { justify-self: end; }
+  .team { min-width: 300px; }
+  .team input[type=text] { background: transparent; border: none; color: #fff; font-size: 22px; font-weight: 700; width: 170px; outline: none; }
+  .team input[type=color] { width: 30px; height: 30px; border: none; padding: 0; background: none; cursor: pointer; }
+  .team .score { font-size: 28px; }
+  .center { text-align: center; }
+  .center h1 { margin: 0; font-size: 22px; letter-spacing: 3px; opacity: .8; }
+  .center .turn { font-size: 18px; font-weight: 700; margin: 4px 0; }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; padding: 0 20px; min-height: 0; }
+  .boardWrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; }
+  .boardWrap svg { width: 100%; height: 100%; max-height: calc(100vh - 190px); }
+  .boardHint { font-size: 13px; opacity: .6; padding-top: 4px; text-align: center; }
+
+  .panel {
+    background: #fff; color: #1d2b4f; border-radius: 22px; padding: 22px 28px; display: flex; flex-direction: column;
+    gap: 14px; min-height: 0; overflow: auto; box-shadow: 0 16px 50px rgba(0,0,0,.45); align-self: center; max-height: 100%;
+  }
+  .phase { font-size: 22px; font-weight: 800; padding: 10px 16px; border-radius: 12px; color: #fff; background: #2f5fb3; }
+  .meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: #5b6a8c; }
+  .q { font-size: clamp(22px, 2.3vw, 34px); font-weight: 700; line-height: 1.25; }
+  .ans { background: #e8f6ec; border-radius: 12px; padding: 10px 16px; }
+  .ans small { display: block; color: #4d7a5b; font-weight: 700; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
+  .ans div { font-size: clamp(20px, 2vw, 28px); font-weight: 800; color: var(--ok); }
+  .timer { position: relative; height: 32px; background: #e3e8f2; border-radius: 10px; overflow: hidden; }
+  .timer .bar { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #2ecc71, #27ae60); width: 0; }
+  .timer.low .bar { background: linear-gradient(90deg, #f39c12, #e67e22); }
+  .timer.over .bar { background: var(--bad); width: 100% !important; }
+  .timer span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; color: #1d2b4f; }
+  .timer.over span { color: #fff; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row button { background: #e3e8f2; color: #1d2b4f; font-weight: 600; }
+  .row button.on { background: #2f5fb3; color: #fff; }
+  .grow { flex: 1; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .actions button { font-size: 20px; font-weight: 800; padding: 18px 14px; border-radius: 14px; line-height: 1.2; }
+  .actions .ok { background: var(--ok); }
+  .actions .bad { background: var(--bad); }
+  .idle { font-size: 22px; line-height: 1.5; color: #5b6a8c; text-align: center; padding: 30px 10px; }
+  .idle b { color: #1d2b4f; }
+  .hidden { display: none !important; }
+
+  footer { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; padding: 12px; }
+  .pill { font-size: 14px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.1); }
+  .pill.ok { background: var(--ok); }
+  .pill.warn { background: var(--bad); }
+  #bProj { background: #f1c40f; color: #222; font-weight: 700; }
+
+  /* okna */
+  .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(5,10,25,.72); z-index: 10; padding: 24px; }
+  .modal.open { display: flex; }
+  .card { background: #fff; color: #1d2b4f; border-radius: 20px; width: min(1100px, 100%); max-height: 100%; padding: 24px 30px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  .card.small { width: min(520px, 100%); }
+  .card h2 { margin: 0; }
+  .card .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .card button.grey { background: #ccd3e0; color: #333; }
+  .card .btn { background: #2f5fb3; }
+  .card .btn.red { background: var(--bad); }
+  .scroll { overflow: auto; min-height: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e3e8f2; vertical-align: top; }
+  th { position: sticky; top: 0; background: #fff; }
+  tr.used td { color: #9aa3b8; }
+  tr.used td:nth-child(3) { text-decoration: line-through; }
+  .tabs { display: flex; gap: 8px; }
+  .tabs button { background: #e3e8f2; color: #333; }
+  .tabs button.on { background: #2f5fb3; color: #fff; }
+  .settings { display: grid; grid-template-columns: auto 1fr; gap: 12px 18px; align-items: center; font-size: 16px; }
+  .settings input[type=number] { width: 80px; font: inherit; padding: 4px 8px; }
+  .settings label { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; }
+  .manual { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .manual button { font-size: 18px; font-weight: 700; padding: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="team" id="team1">
+    <input type="color" id="c1" title="Barva týmu">
+    <input type="text" id="n1">
+    <span class="score" id="s1">0</span>
+  </div>
+  <div class="center">
+    <h1>HEXKVÍZ · MODERÁTOR</h1>
+    <div class="turn" id="turn"></div>
+    <button id="bSwap">⇄ Přepnout tah <kbd>Mezerník</kbd></button>
+  </div>
+  <div class="team" id="team2">
+    <input type="color" id="c2" title="Barva týmu">
+    <input type="text" id="n2">
+    <span class="score" id="s2">0</span>
+  </div>
+</header>
+
+<main>
+  <div class="boardWrap">
+    <svg id="board"></svg>
+    <div class="boardHint">Klik = pole, které si tým vybral · Pravé tlačítko / Shift+klik = ruční úprava pole</div>
+  </div>
+
+  <section class="panel">
+    <div class="phase" id="phase"></div>
+
+    <div id="idle" class="idle"></div>
+
+    <div id="qbox" class="hidden" style="display:flex;flex-direction:column;gap:14px">
+      <div class="meta"><span id="qField"></span><span class="cat" id="qCat"></span></div>
+      <div class="q" id="qText"></div>
+      <div class="ans"><small>Správná odpověď</small><div id="qAns"></div></div>
+      <div class="timer" id="timer"><div class="bar" id="tBar"></div><span id="tNum"></span></div>
+      <div class="row">
+        <button id="bTimer">▶ Start<kbd>T</kbd></button>
+        <button id="bRestart">↺ Znovu<kbd>R</kbd></button>
+        <span class="grow"></span>
+        <button id="bOther" title="Zahodí otázku (zůstane použitá) a vytáhne novou">↻ Jiná otázka<kbd>N</kbd></button>
+        <button id="bShowAns" title="Zobrazí správnou odpověď na projektoru">👁 Odpověď na projektor<kbd>O</kbd></button>
+        <button id="bCancel" title="Zruší výběr pole, otázka zůstane použitá">✖ Zrušit<kbd>Esc</kbd></button>
+      </div>
+      <div class="actions">
+        <button class="ok" id="bOk"></button>
+        <button class="bad" id="bBad"></button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <button id="bProj">📽 Otevřít projektor<kbd>P</kbd></button>
+  <span class="pill" id="conn"></span>
+  <button id="bUndo">↶ Zpět<kbd>Ctrl+Z</kbd></button>
+  <button id="bNew">Nová hra</button>
+  <button id="bList">Seznam otázek<kbd>L</kbd></button>
+  <button id="bSettings">Nastavení<kbd>S</kbd></button>
+  <span class="pill" id="remain"></span>
+</footer>
+
+<!-- ruční úprava pole -->
+<div class="modal" id="mManual">
+  <div class="card small">
+    <div class="head"><h2 id="manTitle"></h2><button class="grey" data-close>Zavřít<kbd>Esc</kbd></button></div>
+    <div>Ruční nastavení pole (nemění tah ani nepoužije otázku):</div>
+    <div class="manual">
+      <button data-m="1" id="man1"></button>
+      <button data-m="2" id="man2"></button>
+      <button data-m="3" style="background:var(--black)">Černé pole</button>
+      <button data-m="0" class="grey">Prázdné pole</button>
+    </div>
+  </div>
+</div>
+
+<!-- seznam otázek -->
+<div class="modal" id="mList">
+  <div class="card" style="height:100%">
+    <div class="head">
+      <h2>Seznam otázek</h2>
+      <div class="tabs">
+        <button data-f="all" class="on">Všechny</button>
+        <button data-f="used">Použité</button>
+        <button data-f="free">Nepoužité</button>
+      </div>
+      <button class="grey" data-close>Zavřít<kbd>Esc</kbd></button>
+    </div>
+    <div class="scroll"><table><thead><tr><th>#</th><th>Sada · okruh</th><th>Otázka</th><th>Odpověď</th><th>Stav</th></tr></thead><tbody id="listBody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- nastavení -->
+<div class="modal" id="mSet">
+  <div class="card">
+    <div class="head"><h2>Nastavení</h2><button class="grey" data-close>Zavřít<kbd>Esc</kbd></button></div>
+    <div class="settings">
+      <b>Čas na odpověď</b><span><input type="number" min="0" max="300" data-num="tAnswer"> s</span>
+      <b>Čas pro soupeře</b><span><input type="number" min="0" max="300" data-num="tSteal"> s</span>
+      <b>Čas na ANO / NE</b><span><input type="number" min="0" max="300" data-num="tYesNo"> s <small>(0 = bez časovače)</small></span>
+      <b>Časovač</b><span><label><input type="checkbox" data-bool="autostart"> spustit automaticky po výběru pole</label></span>
+      <b>Pravidla</b><span><label><input type="checkbox" data-bool="steal"> při špatné odpovědi může odpovídat soupeř</label></span>
+      <b>Projektor</b><span>
+        <label><input type="checkbox" data-bool="sound"> zvuky</label>
+        <label><input type="checkbox" data-bool="showQ"> zobrazovat znění otázky</label></span>
+      <b>Sady otázek</b><span id="sSets"></span>
+      <b>Použité otázky</b><span><span id="sStat"></span> &nbsp; <button class="btn red" id="bResetUsed">Obnovit všechny otázky</button></span>
+    </div>
+  </div>
+</div>
+
+<script src="js/otazky.js"></script>
+<script src="js/deska.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const N = Deska.N;
+const other = t => t === 1 ? 2 : 1;
+
+// ===================== ULOŽENÍ =====================
+const LS = { game: 'azkviz-mod-game', used: 'azkviz-mod-used', settings: 'azkviz-mod-settings' };
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+const DEFAULTS = { tAnswer: 15, tSteal: 10, tYesNo: 10, autostart: true, steal: true, sound: true, showQ: false, sets: {} };
+let settings = { ...DEFAULTS, ...load(LS.settings, {}) };
+for (const k of Object.keys(SETS)) if (!(k in settings.sets)) settings.sets[k] = true;
+let used = load(LS.used, {});
+
+const saved = load(LS.game, null);
+let game = { owner: Array(N).fill(0), turn: 1, n1: 'Tým 1', n2: 'Tým 2', c1: '#f28c1b', c2: '#2f7de1', ...(saved?.game || {}) };
+if (game.owner?.length !== N) game.owner = Array(N).fill(0);
+let round = saved?.round?.phase ? saved.round : { phase: 'select', cell: -1, q: null, team: game.turn };
+let timer = { id: 0, duration: 0, endsAt: 0, remaining: 0, running: false };
+let showAnsProj = false;
+let history = [];
+let manualCell = -1;
+
+// ===================== OTÁZKY =====================
+function pool(kind, onlyActive = true) {
+  if (kind === 'yesno') return ANO_NE.map((q, i) => ({ id: 'yn-' + i, set: 'ANO / NE', cat: 'ANO / NE', text: q[0], ans: q[1] }));
+  const out = [];
+  for (const [k, s] of Object.entries(SETS))
+    if (!onlyActive || settings.sets[k]) s.q.forEach((q, i) => out.push({ id: `${k}-${i}`, set: s.name, cat: q[0], text: q[1], ans: q[2] }));
+  return out;
+}
+const free = kind => pool(kind).filter(q => !(q.id in used));
+function draw(kind) {
+  const f = free(kind);
+  if (!f.length) return null;
+  const q = f[Math.floor(Math.random() * f.length)];
+  used[q.id] = Object.keys(used).length + 1;     // otevřená otázka = použitá, už se nevrátí
+  store(LS.used, used);
+  return q;
+}
+
+// ===================== SPOJENÍ S PROJEKTOREM =====================
+let projWin = null, lastHello = 0;
+let bc = null;
+try { bc = new BroadcastChannel('azkviz'); bc.onmessage = e => onMsg(e.data, null); } catch {}
+window.addEventListener('message', e => onMsg(e.data, e.source));
+function onMsg(d, src) {
+  if (d?.type !== 'hello') return;
+  const fresh = src && projWin !== src;
+  if (src) projWin = src;
+  lastHello = Date.now();
+  if (d.need || fresh) send(null);
+  updateConn();
+}
+function post(msg) {
+  try { if (projWin && !projWin.closed) projWin.postMessage(msg, '*'); } catch {}
+  try { bc?.postMessage(msg); } catch {}
+}
+function openProjector() {
+  const w = window.open('projektor.html', 'azkviz-projektor', 'popup=yes,width=1280,height=800');
+  if (w) { projWin = w; setTimeout(() => send(null), 600); }
+  else alert('Prohlížeč zablokoval otevření okna. Povol vyskakovací okna pro tuto stránku.');
+}
+function updateConn() {
+  const ok = Date.now() - lastHello < 5000;
+  $('conn').textContent = ok ? '✓ Projektor připojen' : '✗ Projektor nepřipojen';
+  $('conn').className = 'pill ' + (ok ? 'ok' : 'warn');
+}
+setInterval(updateConn, 1000);
+
+// ===================== ČASOVAČ =====================
+const timeLeft = () => timer.running ? Math.max(0, timer.endsAt - Date.now()) : timer.remaining;
+function phaseSeconds() {
+  return round.phase === 'steal' ? settings.tSteal : round.phase === 'yesno' ? settings.tYesNo : settings.tAnswer;
+}
+function timerStart() {
+  const s = phaseSeconds();
+  timer = { id: timer.id + 1, duration: s * 1000, endsAt: Date.now() + s * 1000, remaining: s * 1000, running: s > 0 };
+  if (s <= 0) timer.duration = 0;
+}
+function timerReset() {
+  const s = phaseSeconds();
+  timer = { id: timer.id + 1, duration: s * 1000, endsAt: 0, remaining: s * 1000, running: false };
+}
+function timerClear() { timer = { id: timer.id + 1, duration: 0, endsAt: 0, remaining: 0, running: false }; }
+function timerToggle() {
+  if (!inRound()) return;
+  if (!timer.duration) timerStart();
+  else if (timer.running) { timer.remaining = timeLeft(); timer.running = false; }
+  else if (timer.remaining > 0) { timer.endsAt = Date.now() + timer.remaining; timer.running = true; }
+  else timerStart();
+  sync();
+}
+function timerRestart() { if (!inRound()) return; timerStart(); sync(); }
+function phaseTimer() { settings.autostart ? timerStart() : timerReset(); }
+
+function drawTimer() {
+  const tm = $('timer');
+  if (!timer.duration) { tm.classList.add('hidden'); $('bTimer').innerHTML = '▶ Start<kbd>T</kbd>'; return; }
+  tm.classList.remove('hidden');
+  const left = timeLeft(), sec = Math.ceil(left / 1000);
+  $('tBar').style.width = (left / timer.duration * 100) + '%';
+  tm.classList.toggle('low', sec <= 5 && left > 0);
+  tm.classList.toggle('over', left <= 0);
+  $('tNum').textContent = left <= 0 ? 'ČAS VYPRŠEL' : `${sec} s${timer.running ? '' : ' – pozastaveno'}`;
+  $('bTimer').innerHTML = timer.running ? '⏸ Pauza<kbd>T</kbd>' : '▶ Start<kbd>T</kbd>';
+  if (timer.running && left <= 0) { timer.running = false; timer.remaining = 0; sync('buzz'); }
+}
+setInterval(drawTimer, 100);
+
+// ===================== HERNÍ LOGIKA =====================
+const inRound = () => ['question', 'steal', 'yesno'].includes(round.phase);
+const result = () => Deska.findWinner(game.owner);
+
+function selectCell(i, e) {
+  if (e?.shiftKey) return openManual(i);
+  const v = game.owner[i];
+  if (v === 1 || v === 2) return openManual(i);
+  if (round.phase === 'end') return;
+  if (inRound()) {
+    if (i === round.cell) return;
+    if (!confirm('Právě běží otázka. Zrušit ji a vybrat jiné pole? (Otázka zůstane použitá.)')) return;
+  }
+  const kind = v === 3 ? 'yesno' : 'main';
+  round = { phase: kind === 'yesno' ? 'yesno' : 'question', cell: i, q: draw(kind), team: game.turn };
+  showAnsProj = false;
+  phaseTimer();
+  sync('open');
+}
+
+function otherQuestion() {
+  if (!inRound()) return;
+  round.q = draw(round.phase === 'yesno' ? 'yesno' : 'main');
+  showAnsProj = false;
+  phaseTimer();
+  sync('open');
+}
+
+function answer(correct) {
+  if (!inRound()) return;
+  const { phase, cell, team } = round;
+  if (phase === 'question') {
+    if (correct) return finish(team);
+    if (settings.steal) { round.phase = 'steal'; phaseTimer(); return sync('wrong'); }
+    return finish(3);
+  }
+  if (phase === 'steal') return finish(correct ? other(team) : 3);
+  if (phase === 'yesno') return finish(correct ? team : other(team));
+}
+
+function finish(owner) {
+  history.push(JSON.stringify({ game, round: { phase: 'select', cell: -1, q: null, team: round.team } }));
+  const before = result().winner;
+  game.owner[round.cell] = owner;
+  const cell = round.cell;
+  game.turn = other(round.team);
+  timerClear();
+  const { winner } = result();
+  round = { phase: winner ? 'end' : 'select', cell: -1, q: null, team: game.turn, last: cell };
+  board.pop(cell);
+  sync(winner && !before ? 'win' : owner === 3 ? 'black' : 'team', cell);
+}
+
+function cancelRound() {
+  if (!inRound()) return;
+  round = { phase: 'select', cell: -1, q: null, team: game.turn };
+  timerClear(); showAnsProj = false;
+  sync();
+}
+
+function openManual(i) {
+  manualCell = i;
+  $('manTitle').textContent = `Pole ${Deska.cells[i].id}`;
+  $('man1').textContent = game.n1; $('man1').style.background = game.c1;
+  $('man2').textContent = game.n2; $('man2').style.background = game.c2;
+  $('mManual').classList.add('open');
+}
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+  if (manualCell < 0) return;
+  history.push(JSON.stringify({ game, round }));
+  const before = result().winner;
+  game.owner[manualCell] = +b.dataset.m;
+  if (round.cell === manualCell) { round = { phase: 'select', cell: -1, q: null, team: game.turn }; timerClear(); }
+  const { winner } = result();
+  if (winner) round = { phase: 'end', cell: -1, q: null, team: game.turn };
+  else if (round.phase === 'end') round = { phase: 'select', cell: -1, q: null, team: game.turn };
+  board.pop(manualCell);
+  $('mManual').classList.remove('open');
+  sync(winner && !before ? 'win' : null, manualCell);
+  manualCell = -1;
+});
+
+function undo() {
+  if (!history.length) return;
+  const h = JSON.parse(history.pop());
+  game = h.game; round = h.round?.phase && !['question', 'steal', 'yesno'].includes(h.round.phase) ? h.round : { phase: 'select', cell: -1, q: null, team: game.turn };
+  if (result().winner) round.phase = 'end';
+  timerClear(); showAnsProj = false;
+  sync();
+}
+function newGame() {
+  if (game.owner.some(v => v) && !confirm('Opravdu začít novou hru? (Použité otázky zůstanou použité.)')) return;
+  history.push(JSON.stringify({ game, round: { phase: 'select', cell: -1, q: null, team: game.turn } }));
+  game.owner = Array(N).fill(0); game.turn = 1;
+  round = { phase: 'select', cell: -1, q: null, team: 1 };
+  timerClear(); showAnsProj = false;
+  sync();
+}
+function swapTurn() {
+  if (inRound()) return;
+  game.turn = other(game.turn); round.team = game.turn;
+  sync();
+}
+
+// ===================== VYKRESLENÍ =====================
+const board = Deska.create($('board'), { onClick: selectCell, onContext: i => openManual(i) });
+const tn = t => game['n' + t];
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+
+function phaseText(winner) {
+  const c = round.cell >= 0 ? Deska.cells[round.cell].id : '';
+  switch (round.phase) {
+    case 'question': return `Pole ${c} – odpovídá ${tn(round.team)}`;
+    case 'steal': return `Šance pro ${tn(other(round.team))} – pole ${c}`;
+    case 'yesno': return `Černé pole ${c} – ANO / NE pro ${tn(round.team)}`;
+    case 'end': return `🏆 Vítěz: ${tn(winner)}`;
+    default: return `Vybírá ${tn(game.turn)}`;
+  }
+}
+
+function sync(sfx = null, popCell = -1) {
+  const { winner, winSet } = result();
+  if (winner && round.phase !== 'end' && !inRound()) round.phase = 'end';
+  const ph = phaseText(winner);
+  const phaseColor = round.phase === 'end' ? Deska.colorOf(winner, game.c1, game.c2)
+    : round.phase === 'steal' ? game['c' + other(round.team)]
+    : round.phase === 'yesno' ? Deska.BLACK : game['c' + (inRound() ? round.team : game.turn)];
+
+  // hlavička a deska
+  board.render({ owner: game.owner, c1: game.c1, c2: game.c2, winSet, selected: inRound() ? round.cell : -1 });
+  for (const t of [1, 2]) {
+    $('n' + t).value = game['n' + t]; $('c' + t).value = game['c' + t];
+    $('team' + t).style.background = hexA(game['c' + t], .28);
+    $('s' + t).textContent = game.owner.filter(v => v === t).length;
+    $('team' + t).classList.toggle('active', !winner && (inRound() ? (round.phase === 'steal' ? other(round.team) : round.team) : game.turn) === t);
+  }
+  $('turn').textContent = ph;
+  $('bSwap').disabled = inRound() || !!winner;
+
+  // panel
+  $('phase').textContent = ph;
+  $('phase').style.background = phaseColor;
+  $('qbox').classList.toggle('hidden', !inRound());
+  $('idle').classList.toggle('hidden', inRound());
+  if (round.phase === 'end') {
+    $('idle').innerHTML = `🏆 <b>${esc(tn(winner))}</b> spojil všechny tři strany a vyhrává!<br><br><button class="btn" style="background:#2f5fb3;font-size:20px;padding:12px 24px" onclick="newGame()">Nová hra</button>`;
+  } else if (!inRound()) {
+    $('idle').innerHTML = `Na tahu je <b>${esc(tn(game.turn))}</b>.<br>Klikni na pole, které si tým vybral.<br><small>Prázdné pole = běžná otázka · černé pole = otázka ANO / NE</small>`;
+  } else {
+    const q = round.q;
+    $('qField').textContent = `Pole ${Deska.cells[round.cell].id}` + (round.phase === 'yesno' ? ' · černé pole' : '');
+    $('qCat').textContent = q ? q.cat : '';
+    $('qCat').style.background = q ? (CAT_COLORS[q.cat] || '#34495e') : 'transparent';
+    $('qText').textContent = q ? q.text : '⚠ Došly otázky. Obnov je v Nastavení, nebo vyhodnoť pole ručně.';
+    $('qAns').textContent = q ? q.ans : '–';
+    $('bShowAns').classList.toggle('on', showAnsProj);
+    $('bOther').disabled = !q;
+    const me = tn(round.team), op = tn(other(round.team));
+    const labels = {
+      question: [`✔ Správně → pole pro ${me}`, settings.steal ? `✘ Špatně → šance pro ${op}` : `✘ Špatně → černé pole`],
+      steal: [`✔ ${op} správně → pole pro ${op}`, `✘ ${op} špatně → černé pole`],
+      yesno: [`✔ Správně → pole pro ${me}`, `✘ Špatně → pole pro ${op}`],
+    }[round.phase];
+    $('bOk').innerHTML = labels[0] + '<kbd>1</kbd>';
+    $('bBad').innerHTML = labels[1] + '<kbd>2</kbd>';
+  }
+  drawTimer();
+  updateRemain();
+  store(LS.game, { game, round });
+  send(sfx, popCell, { winner, winSet, ph, phaseColor });
+}
+
+function send(sfx = null, popCell = -1, info = null) {
+  const { winner, winSet } = info || result();
+  const q = inRound() ? round.q : null;
+  post({
+    type: 'state', id: Math.random().toString(36).slice(2), sfx, pop: popCell,
+    view: {
+      owner: game.owner, n1: game.n1, n2: game.n2, c1: game.c1, c2: game.c2,
+      turn: game.turn, phase: round.phase, phaseText: info?.ph ?? phaseText(winner),
+      phaseColor: info?.phaseColor ?? '#2f5fb3',
+      active: winner ? 0 : inRound() ? (round.phase === 'steal' ? other(round.team) : round.team) : game.turn,
+      selected: inRound() ? round.cell : -1,
+      cat: q?.cat || '', catColor: q ? (CAT_COLORS[q.cat] || '#34495e') : '',
+      question: settings.showQ && q ? q.text : '',
+      answer: showAnsProj && q ? q.ans : '',
+      timer: { ...timer, now: Date.now() },
+      winner, winSet, sound: settings.sound,
+    },
+  });
+}
+
+function updateRemain() {
+  const n = free('main').length, y = free('yesno').length;
+  $('remain').textContent = `Volné otázky: ${n} · ANO/NE: ${y}`;
+  $('remain').className = 'pill' + (n < 10 || y < 3 ? ' warn' : '');
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ===================== SEZNAM =====================
+let listFilter = 'all';
+function renderList() {
+  const rows = [...pool('main', false), ...pool('yesno')].map(q => ({ ...q, order: used[q.id] }))
+    .filter(q => listFilter === 'all' || (listFilter === 'used' ? q.order : !q.order));
+  if (listFilter === 'used') rows.sort((a, b) => a.order - b.order);
+  $('listBody').innerHTML = rows.map((q, k) => `<tr class="${q.order ? 'used' : ''}">
+    <td>${k + 1}</td><td>${esc(q.set)} · ${esc(q.cat)}</td><td>${esc(q.text)}</td><td><b>${esc(q.ans)}</b></td>
+    <td>${q.order ? `použitá (${q.order}.)` : 'volná'}</td></tr>`).join('') || '<tr><td colspan="5">Nic tu není.</td></tr>';
+}
+document.querySelectorAll('#mList .tabs button').forEach(b => b.onclick = () => {
+  listFilter = b.dataset.f;
+  document.querySelectorAll('#mList .tabs button').forEach(x => x.classList.toggle('on', x === b));
+  renderList();
+});
+function openList() { renderList(); $('mList').classList.add('open'); }
+
+// ===================== NASTAVENÍ =====================
+function openSettings() {
+  document.querySelectorAll('[data-num]').forEach(i => i.value = settings[i.dataset.num]);
+  document.querySelectorAll('[data-bool]').forEach(i => i.checked = !!settings[i.dataset.bool]);
+  $('sSets').innerHTML = Object.entries(SETS).map(([k, s]) =>
+    `<label><input type="checkbox" data-set="${k}" ${settings.sets[k] ? 'checked' : ''}> ${esc(s.name)} (${s.q.length})</label>`).join('');
+  $('sSets').querySelectorAll('input').forEach(i => i.onchange = () => { settings.sets[i.dataset.set] = i.checked; saveSettings(); });
+  refreshStat();
+  $('mSet').classList.add('open');
+}
+function refreshStat() {
+  const all = pool('main').length + ANO_NE.length, f = free('main').length + free('yesno').length;
+  $('sStat').textContent = `${all - f} použito, ${f} volných`;
+}
+function saveSettings() { store(LS.settings, settings); refreshStat(); sync(); }
+document.querySelectorAll('[data-num]').forEach(i => i.oninput = () => { settings[i.dataset.num] = Math.max(0, Math.min(300, +i.value || 0)); saveSettings(); });
+document.querySelectorAll('[data-bool]').forEach(i => i.onchange = () => { settings[i.dataset.bool] = i.checked; saveSettings(); });
+$('bResetUsed').onclick = () => {
+  if (!confirm('Opravdu označit všechny otázky znovu jako nepoužité?')) return;
+  used = {}; store(LS.used, used); saveSettings();
+};
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.remove('open'));
+
+// ===================== OVLÁDÁNÍ =====================
+$('bOk').onclick = () => answer(true);
+$('bBad').onclick = () => answer(false);
+$('bTimer').onclick = timerToggle;
+$('bRestart').onclick = timerRestart;
+$('bOther').onclick = otherQuestion;
+$('bShowAns').onclick = () => { showAnsProj = !showAnsProj; sync(); };
+$('bCancel').onclick = cancelRound;
+$('bSwap').onclick = swapTurn;
+$('bUndo').onclick = undo;
+$('bNew').onclick = newGame;
+$('bList').onclick = openList;
+$('bSettings').onclick = openSettings;
+$('bProj').onclick = openProjector;
+for (const t of [1, 2]) {
+  $('n' + t).oninput = () => { game['n' + t] = $('n' + t).value || 'Tým ' + t; sync(); };
+  $('c' + t).oninput = () => { game['c' + t] = $('c' + t).value; sync(); };
+}
+
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA'].includes(e.target.tagName) && e.target.type !== 'checkbox') { if (e.key === 'Escape') e.target.blur(); return; }
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); return; }
+  const modal = document.querySelector('.modal.open');
+  if (modal) {
+    if (e.key === 'Escape') modal.classList.remove('open');
+    if (modal.id === 'mManual' && ['0', '1', '2', '3'].includes(e.key)) document.querySelector(`[data-m="${e.key}"]`).click();
+    return;
+  }
+  if (inRound()) {
+    if (e.key === '1') answer(true);
+    else if (e.key === '2') answer(false);
+    else if (k === 't') timerToggle();
+    else if (k === 'r') timerRestart();
+    else if (k === 'n') otherQuestion();
+    else if (k === 'o') $('bShowAns').click();
+    else if (e.key === 'Escape') cancelRound();
+  } else if (e.key === ' ') { e.preventDefault(); swapTurn(); }
+  if (k === 'l') openList();
+  else if (k === 's') openSettings();
+  else if (k === 'p') openProjector();
+});
+
+sync();
+updateConn();
+</script>
+</body>
+</html>

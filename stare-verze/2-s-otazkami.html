@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hexkvíz s otázkami</title>
+<style>
+  :root {
+    --bg1: #0d1b3a;
+    --bg2: #1d3b7a;
+    --empty: #e9edf5;
+    --empty-stroke: #9aa7c2;
+    --text: #fff;
+    --black: #2a2a2e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    background: radial-gradient(ellipse at center, var(--bg2), var(--bg1) 75%);
+    display: flex; flex-direction: column; align-items: center;
+    overflow: hidden; user-select: none;
+  }
+  header {
+    width: 100%; display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 24px; gap: 16px;
+  }
+  .team {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 18px; border-radius: 14px; background: rgba(255,255,255,.07);
+    border: 3px solid transparent; transition: .2s; min-width: 260px;
+  }
+  .team.active { border-color: #fff; box-shadow: 0 0 24px rgba(255,255,255,.35); }
+  .team input[type=text] {
+    background: transparent; border: none; color: #fff; font-size: 24px; font-weight: 700;
+    width: 160px; outline: none;
+  }
+  .team .score { font-size: 28px; font-weight: 800; margin-left: auto; }
+  .team input[type=color] { width: 28px; height: 28px; border: none; padding: 0; background: none; cursor: pointer; }
+  .center { text-align: center; }
+  .center h1 { margin: 0; font-size: 30px; letter-spacing: 2px; }
+  .turn { font-size: 15px; opacity: .85; }
+  main { flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  svg { height: 100%; max-height: calc(100vh - 150px); width: auto; max-width: 96vw; }
+  .hex { cursor: pointer; }
+  .hex polygon { transition: fill .25s; stroke-width: 4; }
+  .hex:hover polygon { filter: brightness(1.08); }
+  .hex text { font-size: 34px; font-weight: 800; pointer-events: none; text-anchor: middle; dominant-baseline: central; }
+  .hex.win polygon { stroke: #ffe24a; stroke-width: 8; }
+  footer { padding: 10px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  button {
+    font: inherit; font-size: 15px; padding: 8px 16px; border-radius: 10px; border: none; cursor: pointer;
+    background: rgba(255,255,255,.12); color: #fff;
+  }
+  button:hover { filter: brightness(1.15); }
+  .help { font-size: 13px; opacity: .6; }
+
+  /* okno s otázkou */
+  .modal {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(5,10,25,.7); z-index: 10; padding: 24px;
+  }
+  .modal.open { display: flex; }
+  .card {
+    background: #fff; color: #1d2b4f; border-radius: 22px; width: min(1000px, 100%);
+    padding: 28px 36px; box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .card .meta { display: flex; justify-content: space-between; font-weight: 700; font-size: 18px; color: #5b6a8c; }
+  .card .meta .cat { text-transform: uppercase; letter-spacing: 1px; }
+  .card .spare { color: #c0392b; }
+  .card .q { font-size: clamp(26px, 3.4vw, 42px); font-weight: 700; line-height: 1.25; min-height: 2.5em; }
+  .card .a {
+    font-size: clamp(22px, 2.8vw, 34px); font-weight: 700; color: #1a7f37; background: #e8f6ec;
+    border-radius: 12px; padding: 14px 18px; display: none;
+  }
+  .card .a.show { display: block; }
+  .card .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .card .row button { font-size: 18px; font-weight: 700; padding: 12px 18px; }
+  .card .row button kbd { opacity: .7; font-family: inherit; margin-left: 6px; }
+  .b-ans { background: #1a7f37; }
+  .b-black { background: var(--black); }
+  .b-clear, .b-close { background: #ccd3e0; color: #333 !important; }
+  .grow { flex: 1; }
+
+  .banner {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
+    background: rgba(0,0,0,.55); z-index: 20; gap: 18px;
+  }
+  .banner.open { display: flex; }
+  .banner h2 { font-size: 64px; margin: 0; text-shadow: 0 4px 20px rgba(0,0,0,.6); }
+</style>
+</head>
+<body>
+<header>
+  <div class="team" id="team1">
+    <input type="color" id="c1" value="#f28c1b" title="Barva týmu">
+    <input type="text" id="n1" value="Tým 1">
+    <span class="score" id="s1">0</span>
+  </div>
+  <div class="center">
+    <h1>HEXKVÍZ</h1>
+    <div class="turn" id="turn"></div>
+  </div>
+  <div class="team" id="team2">
+    <input type="color" id="c2" value="#2f7de1" title="Barva týmu">
+    <input type="text" id="n2" value="Tým 2">
+    <span class="score" id="s2">0</span>
+  </div>
+</header>
+
+<main><svg id="board"></svg></main>
+
+<footer>
+  <button id="swap">Přepnout tah (Mezerník)</button>
+  <button id="undo">Zpět (Ctrl+Z)</button>
+  <button id="reset">Nová hra (zamíchá otázky)</button>
+  <button id="fs">Celá obrazovka (F)</button>
+  <span class="help" id="spareInfo"></span>
+</footer>
+
+<div class="modal" id="modal">
+  <div class="card">
+    <div class="meta">
+      <span id="qField"></span>
+      <span class="spare" id="qSpare"></span>
+      <span class="cat" id="qCat"></span>
+    </div>
+    <div class="q" id="qText"></div>
+    <div class="a" id="qAns"></div>
+    <div class="row">
+      <button class="b-ans" id="bAns">Ukázat odpověď <kbd>Enter</kbd></button>
+      <span class="grow"></span>
+      <button class="b-t1" data-v="1"><span>Tým 1</span><kbd>1</kbd></button>
+      <button class="b-t2" data-v="2"><span>Tým 2</span><kbd>2</kbd></button>
+      <button class="b-black" data-v="3">Černé pole<kbd>3</kbd></button>
+      <button class="b-clear" data-v="0">Vymazat<kbd>0</kbd></button>
+      <button class="b-close" id="bClose">Zavřít<kbd>Esc</kbd></button>
+    </div>
+  </div>
+</div>
+
+<div class="banner" id="banner">
+  <h2 id="winText"></h2>
+  <div style="display:flex;gap:10px">
+    <button id="bannerClose">Zobrazit desku</button>
+    <button id="bannerNew">Nová hra</button>
+  </div>
+</div>
+
+<script>
+// ===== OTÁZKY =====  (můžeš libovolně upravit / přidat; prvních 28 po zamíchání jde na pole, zbytek jsou náhradní pro černá pole)
+const QUESTIONS = [
+  ['Obecně', 'Jak se říká zařízení, které se připojuje k počítači zvenku a rozšiřuje jeho možnosti?', 'Periferie (periferní zařízení)'],
+  ['Obecně', 'Je monitor vstupní, nebo výstupní zařízení?', 'Výstupní'],
+  ['Obecně', 'Které zařízení je vstupní i výstupní zároveň: myš, dotykový displej, nebo reproduktor?', 'Dotykový displej'],
+  ['Obecně', 'Jak se jmenuje vlastnost, kdy zařízení po připojení funguje samo bez ručního nastavování?', 'Plug and Play'],
+  ['Monitor', 'Jak se jmenuje nejmenší bod obrazu na monitoru?', 'Pixel'],
+  ['Monitor', 'Jaké rozlišení se označuje jako Full HD?', '1920 × 1080'],
+  ['Monitor', 'Jaké rozlišení má 4K UHD?', '3840 × 2160'],
+  ['Monitor', 'V jakých jednotkách se udává obnovovací frekvence monitoru?', 'V hertzích (Hz)'],
+  ['Monitor', 'V jakých jednotkách se udává úhlopříčka monitoru?', 'V palcích (1″ = 2,54 cm)'],
+  ['Monitor', 'Jak se jmenuje typ LCD panelu s nejlepšími pozorovacími úhly a věrnými barvami?', 'IPS'],
+  ['Monitor', 'Co znamená zkratka OLED?', 'Organic Light-Emitting Diode (organická svítivá dioda)'],
+  ['Monitor', 'Jak se jmenuje starší analogový obrazový konektor, obvykle modrý, s 15 piny?', 'VGA (D-Sub)'],
+  ['Monitor', 'Který digitální konektor přenáší obraz i zvuk a najdeme ho skoro na každé televizi?', 'HDMI'],
+  ['Projektor', 'V jakých jednotkách se udává světelný výkon projektoru?', 'V (ANSI) lumenech'],
+  ['Projektor', 'Jak se jmenuje funkce, která opraví lichoběžníkový tvar obrazu, když projektor stojí šikmo?', 'Keystone (korekce lichoběžníku)'],
+  ['Projektor', 'Jak se jmenuje technologie projektorů, která tvoří obraz pomocí mikrozrcátek?', 'DLP'],
+  ['Projektor', 'Jak se říká projektoru, který promítá velký obraz z malé vzdálenosti od plátna?', 'Short throw (krátkoprojekční)'],
+  ['Projektor', 'Co vyjadřuje kontrastní poměr projektoru?', 'Poměr jasu nejsvětlejší bílé a nejtmavší černé'],
+  ['Myš', 'Kdo je považován za vynálezce počítačové myši?', 'Douglas Engelbart'],
+  ['Myš', 'Co udává hodnota DPI u myši?', 'Citlivost – počet bodů na palec pohybu'],
+  ['Myš', 'Co měly staré myši místo dnešního optického senzoru?', 'Kuličku'],
+  ['Myš', 'Jak se jmenuje myš, u které se otáčí kuličkou prstem a myš sama stojí na místě?', 'Trackball'],
+  ['Myš', 'Co u myši udává polling rate?', 'Kolikrát za sekundu myš posílá počítači svou polohu (Hz)'],
+  ['Myš', 'Jak se jmenuje dotyková plocha na notebooku, která nahrazuje myš?', 'Touchpad'],
+  ['Klávesnice', 'Jak se jmenuje nejrozšířenější rozložení klávesnice podle prvních písmen horní řady?', 'QWERTY'],
+  ['Klávesnice', 'Čím se liší české rozložení QWERTZ od QWERTY?', 'Má prohozená písmena Y a Z'],
+  ['Klávesnice', 'Jak se jmenuje spínač pod každou klávesou mechanické klávesnice?', 'Switch'],
+  ['Klávesnice', 'Na kterých dvou klávesách jsou hmatové výstupky pro orientaci prstů?', 'F a J'],
+  ['Klávesnice', 'Která klávesa zapíná a vypíná numerickou část klávesnice?', 'Num Lock'],
+  ['Klávesnice', 'Co ve Windows udělá klávesová zkratka Win + L?', 'Zamkne počítač'],
+  ['Klávesnice', 'Jak se jmenuje vlastnost klávesnice, která rozpozná libovolný počet současně stisknutých kláves?', 'N-key rollover (anti-ghosting)'],
+  ['Zvuk', 'V jakých jednotkách se udává hladina hlasitosti (akustického tlaku)?', 'V decibelech (dB)'],
+  ['Zvuk', 'Jaký je přibližný frekvenční rozsah lidského sluchu?', '20 Hz až 20 kHz'],
+  ['Zvuk', 'Jak se jmenuje reproduktor určený pro nejhlubší basy?', 'Subwoofer'],
+  ['Zvuk', 'Co znamená označení zvukové soustavy 5.1?', '5 reproduktorů a 1 subwoofer'],
+  ['Zvuk', 'Jak se jmenuje technologie ve sluchátkách, která aktivně potlačuje okolní hluk?', 'ANC (Active Noise Cancelling)'],
+  ['Zvuk', 'V jakých jednotkách se udává impedance sluchátek?', 'V ohmech (Ω)'],
+  ['Zvuk', 'Jaký průměr má nejběžnější jack konektor pro sluchátka?', '3,5 mm'],
+  ['Zvuk', 'Čím se liší aktivní reproduktory od pasivních?', 'Aktivní mají vlastní zesilovač a napájení'],
+  ['Zvuk', 'Jakou barvu má na zvukové kartě výstup pro reproduktory a jakou vstup pro mikrofon?', 'Zelenou a růžovou'],
+];
+
+const ROWS = 7;
+const SIZE = 58;
+const W = Math.sqrt(3) * SIZE;
+const VS = SIZE * 1.5;
+const STORE = 'hexkviz-otazky-state-v1';
+
+const cells = [];
+for (let r = 0, id = 1; r < ROWS; r++)
+  for (let c = 0; c <= r; c++) cells.push({ id: id++, r, c });
+const N = cells.length;
+const idx = (r, c) => (r < 0 || r >= ROWS || c < 0 || c > r) ? -1 : r * (r + 1) / 2 + c;
+const neighbors = cells.map(({ r, c }) =>
+  [[r, c - 1], [r, c + 1], [r - 1, c - 1], [r - 1, c], [r + 1, c], [r + 1, c + 1]]
+    .map(([a, b]) => idx(a, b)).filter(i => i >= 0));
+const sides = ({ r, c }) => ({ L: c === 0, R: c === r, B: r === ROWS - 1 });
+
+function shuffled(n) {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function dealQuestions(s) {
+  const order = shuffled(QUESTIONS.length);
+  s.qmap = order.slice(0, N);      // otázka pro každé pole
+  s.spare = order.slice(N);         // náhradní otázky pro černá pole
+  s.blackQ = Array(N).fill(-1);     // přidělená náhradní otázka černému poli
+}
+
+let state = { owner: Array(N).fill(0), turn: 1, n1: 'Tým 1', n2: 'Tým 2', c1: '#f28c1b', c2: '#2f7de1' };
+dealQuestions(state);
+let history = [];
+let winner = 0, winSet = new Set();
+try {
+  const s = JSON.parse(localStorage.getItem(STORE));
+  if (s && s.owner?.length === N && s.qmap?.length === N && s.qmap.every(q => q < QUESTIONS.length)) state = { ...state, ...s };
+} catch {}
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch {} };
+
+// ===== deska =====
+const svg = document.getElementById('board');
+const pad = 12;
+const width = ROWS * W + pad * 2, height = (ROWS - 1) * VS + SIZE * 2 + pad * 2;
+svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+const hexPts = (cx, cy) => Array.from({ length: 6 }, (_, k) => {
+  const a = Math.PI / 180 * (60 * k - 90);
+  return `${cx + (SIZE - 3) * Math.cos(a)},${cy + (SIZE - 3) * Math.sin(a)}`;
+}).join(' ');
+const els = cells.map((cell, i) => {
+  const cx = width / 2 + (cell.c - cell.r / 2) * W;
+  const cy = pad + SIZE + cell.r * VS;
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.classList.add('hex');
+  g.innerHTML = `<polygon points="${hexPts(cx, cy)}"/><text x="${cx}" y="${cy}">${cell.id}</text>`;
+  g.addEventListener('click', () => openQuestion(i));
+  svg.appendChild(g);
+  return g;
+});
+
+const BLACK = '#2a2a2e';
+const colorOf = v => v === 1 ? state.c1 : v === 2 ? state.c2 : v === 3 ? BLACK : null;
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+function render() {
+  checkWin();
+  els.forEach((g, i) => {
+    const v = state.owner[i];
+    const p = g.querySelector('polygon'), t = g.querySelector('text');
+    p.setAttribute('fill', v ? colorOf(v) : 'var(--empty)');
+    p.setAttribute('stroke', v ? 'rgba(255,255,255,.85)' : 'var(--empty-stroke)');
+    t.setAttribute('fill', v ? '#fff' : '#1d2b4f');
+    g.classList.toggle('win', winSet.has(i));
+  });
+  n1.value = state.n1; n2.value = state.n2; c1.value = state.c1; c2.value = state.c2;
+  team1.style.background = hexA(state.c1, .25); team2.style.background = hexA(state.c2, .25);
+  s1.textContent = state.owner.filter(v => v === 1).length;
+  s2.textContent = state.owner.filter(v => v === 2).length;
+  team1.classList.toggle('active', state.turn === 1 && !winner);
+  team2.classList.toggle('active', state.turn === 2 && !winner);
+  turn.textContent = winner ? `Vítěz: ${state['n' + winner]}` : `Na tahu: ${state['n' + state.turn]}`;
+  for (const t of [1, 2]) {
+    const b = document.querySelector('.b-t' + t);
+    b.style.background = state['c' + t];
+    b.querySelector('span').textContent = state['n' + t];
+  }
+  spareInfo.textContent = `Náhradních otázek zbývá: ${state.spare.length}`;
+  save();
+}
+
+function checkWin() {
+  winner = 0; winSet = new Set();
+  for (const team of [1, 2]) {
+    const seen = new Set();
+    for (let i = 0; i < N; i++) {
+      if (state.owner[i] !== team || seen.has(i)) continue;
+      const comp = [], stack = [i]; seen.add(i);
+      let L = false, R = false, B = false;
+      while (stack.length) {
+        const j = stack.pop(); comp.push(j);
+        const s = sides(cells[j]); L ||= s.L; R ||= s.R; B ||= s.B;
+        for (const k of neighbors[j]) if (!seen.has(k) && state.owner[k] === team) { seen.add(k); stack.push(k); }
+      }
+      if (L && R && B) { winner = team; comp.forEach(j => winSet.add(j)); }
+    }
+    if (winner) return;
+  }
+}
+
+// ===== okno s otázkou =====
+let openCell = -1;
+function openQuestion(i) {
+  openCell = i;
+  let q = state.qmap[i], spareLabel = '';
+  if (state.owner[i] === 3) {
+    // černé pole → náhradní otázka
+    if (state.blackQ[i] < 0 && state.spare.length) {
+      history.push(JSON.stringify(state));
+      state.blackQ[i] = state.spare.shift();
+      render();
+    }
+    if (state.blackQ[i] >= 0) { q = state.blackQ[i]; spareLabel = 'Náhradní otázka'; }
+    else spareLabel = 'Náhradní otázky došly – původní otázka';
+  }
+  const [cat, text, ans] = QUESTIONS[q];
+  qField.textContent = `Pole ${cells[i].id}`;
+  qSpare.textContent = spareLabel;
+  qCat.textContent = cat;
+  qText.textContent = text;
+  qAns.textContent = ans;
+  qAns.classList.remove('show');
+  modal.classList.add('open');
+}
+function closeQuestion() { modal.classList.remove('open'); openCell = -1; }
+function toggleAnswer() { qAns.classList.toggle('show'); }
+
+function assign(v) {
+  if (openCell < 0) return;
+  const i = openCell; closeQuestion();
+  if (state.owner[i] === v) return;
+  const prevWinner = winner;
+  history.push(JSON.stringify(state));
+  if (state.owner[i] === 3 && v !== 3) state.blackQ[i] = -1; // náhradní otázka spotřebována
+  state.owner[i] = v;
+  if (v !== 0) state.turn = v === 1 ? 2 : v === 2 ? 1 : (state.turn === 1 ? 2 : 1);
+  render();
+  if (winner && !prevWinner) showWin();
+}
+document.querySelectorAll('.card [data-v]').forEach(b => b.onclick = () => assign(+b.dataset.v));
+bAns.onclick = toggleAnswer;
+bClose.onclick = closeQuestion;
+modal.addEventListener('mousedown', e => { if (e.target === modal) closeQuestion(); });
+
+function showWin() {
+  winText.textContent = `🏆 Vyhrává ${state['n' + winner]}!`;
+  winText.style.color = colorOf(winner);
+  banner.classList.add('open');
+}
+bannerClose.onclick = () => banner.classList.remove('open');
+bannerNew.onclick = () => { banner.classList.remove('open'); newGame(); };
+
+// ===== ovládání =====
+function undo() { if (history.length) { state = JSON.parse(history.pop()); render(); } }
+function newGame() {
+  if (state.owner.some(v => v) && !confirm('Opravdu začít novou hru? Otázky se znovu zamíchají.')) return;
+  history.push(JSON.stringify(state));
+  state.owner = Array(N).fill(0); state.turn = 1; dealQuestions(state); render();
+}
+swap.onclick = () => { state.turn = state.turn === 1 ? 2 : 1; render(); };
+document.getElementById('undo').onclick = undo;
+reset.onclick = newGame;
+const toggleFs = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+fs.onclick = toggleFs;
+n1.oninput = () => { state.n1 = n1.value || 'Tým 1'; render(); };
+n2.oninput = () => { state.n2 = n2.value || 'Tým 2'; render(); };
+c1.oninput = () => { state.c1 = c1.value; render(); };
+c2.oninput = () => { state.c2 = c2.value; render(); };
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+  if (openCell >= 0) {
+    if (['0', '1', '2', '3'].includes(e.key)) assign(+e.key);
+    else if (e.key === 'Enter' || e.key.toLowerCase() === 'o') { e.preventDefault(); toggleAnswer(); }
+    else if (e.key === 'Escape') closeQuestion();
+    return;
+  }
+  if (e.key === 'Escape') banner.classList.remove('open');
+  if (e.key === ' ') { e.preventDefault(); swap.click(); }
+  if (e.key.toLowerCase() === 'f') toggleFs();
+});
+
+render();
+</script>
+</body>
+</html>
