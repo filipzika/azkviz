@@ -27,7 +27,8 @@ Zvuky hraje okno projektoru – prohlížeč je povolí až po prvním kliknutí
 - Týmy se střídají. Tým na tahu si vybere číslo pole, moderátor na něj klikne.
 - **Prázdné pole** → běžná otázka.
   - Správně → pole získá tým na tahu.
-  - Špatně → odpovídá soupeř. Správně → pole je jeho, špatně → pole zčerná.
+  - Špatně nebo bez odpovědi → může odpovídat soupeř. Správně → pole je jeho, špatně → pole zčerná.
+    Soupeř může odpovídat **odmítnout** – pole pak hned zčerná.
     (Šanci pro soupeře lze vypnout v nastavení, pak špatná odpověď = rovnou černé pole.)
 - **Černé pole** → otázka ANO / NE. Správně → pole získá tým na tahu, špatně → získá ho soupeř.
 - Vyhrává tým, jehož souvislá řada polí spojí **všechny tři strany** trojúhelníku.
@@ -38,7 +39,8 @@ Zvuky hraje okno projektoru – prohlížeč je povolí až po prvním kliknutí
 |---|---|
 | klik na pole | tým si vybral toto pole (vytáhne se otázka) |
 | pravé tlačítko / Shift + klik | ruční úprava pole |
-| `1` / `2` | správně / špatně |
+| `1` / `2` | správně / špatně (nebo bez odpovědi) |
+| `3` | soupeř odmítá odpovídat → černé pole |
 | `T` | spustit / pozastavit časovač |
 | `R` | časovač znovu od začátku |
 | `N` | jiná otázka (stávající zůstane použitá) |

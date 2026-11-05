@@ -42,7 +42,8 @@
   .row button { background: #e3e8f2; color: #1d2b4f; font-weight: 600; }
   .row button.on { background: #2f5fb3; color: #fff; }
   .grow { flex: 1; }
-  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .actions { display: grid; grid-auto-columns: 1fr; grid-auto-flow: column; gap: 12px; }
+  .actions .skip { background: var(--black); }
   .actions button { font-size: 20px; font-weight: 800; padding: 18px 14px; border-radius: 14px; line-height: 1.2; }
   .actions .ok { background: var(--ok); }
   .actions .bad { background: var(--bad); }
@@ -128,6 +129,7 @@
       <div class="actions">
         <button class="ok" id="bOk"></button>
         <button class="bad" id="bBad"></button>
+        <button class="skip" id="bSkip"></button>
       </div>
     </div>
   </section>
@@ -345,6 +347,11 @@ function answer(correct) {
   if (phase === 'yesno') return finish(correct ? team : other(team));
 }
 
+// soupeř odmítne odpovídat → pole hned zčerná
+function refuse() {
+  if (round.phase === 'steal') finish(3);
+}
+
 function finish(owner) {
   history.push(JSON.stringify({ game, round: { phase: 'select', cell: -1, q: null, team: round.team } }));
   const before = result().winner;
@@ -464,12 +471,14 @@ function sync(sfx = null, popCell = -1) {
     $('bOther').disabled = !q;
     const me = tn(round.team), op = tn(other(round.team));
     const labels = {
-      question: [`✔ Správně → pole pro ${me}`, settings.steal ? `✘ Špatně → šance pro ${op}` : `✘ Špatně → černé pole`],
-      steal: [`✔ ${op} správně → pole pro ${op}`, `✘ ${op} špatně → černé pole`],
+      question: [`✔ Správně → pole pro ${me}`, settings.steal ? `✘ Špatně / bez odpovědi → šance pro ${op}` : `✘ Špatně / bez odpovědi → černé pole`],
+      steal: [`✔ ${op} správně → pole pro ${op}`, `✘ ${op} špatně → černé pole`, `⏭ ${op} odmítá → černé pole`],
       yesno: [`✔ Správně → pole pro ${me}`, `✘ Špatně → pole pro ${op}`],
     }[round.phase];
     $('bOk').innerHTML = labels[0] + '<kbd>1</kbd>';
     $('bBad').innerHTML = labels[1] + '<kbd>2</kbd>';
+    $('bSkip').classList.toggle('hidden', !labels[2]);
+    $('bSkip').innerHTML = (labels[2] || '') + '<kbd>3</kbd>';
   }
   drawTimer();
   updateRemain();
@@ -547,6 +556,7 @@ document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.close
 // ===================== OVLÁDÁNÍ =====================
 $('bOk').onclick = () => answer(true);
 $('bBad').onclick = () => answer(false);
+$('bSkip').onclick = refuse;
 $('bTimer').onclick = timerToggle;
 $('bRestart').onclick = timerRestart;
 $('bOther').onclick = otherQuestion;
@@ -576,6 +586,7 @@ document.addEventListener('keydown', e => {
   if (inRound()) {
     if (e.key === '1') answer(true);
     else if (e.key === '2') answer(false);
+    else if (e.key === '3') refuse();
     else if (k === 't') timerToggle();
     else if (k === 'r') timerRestart();
     else if (k === 'n') otherQuestion();
