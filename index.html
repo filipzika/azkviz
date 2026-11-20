@@ -454,9 +454,7 @@ function answer(correct) {
   if (!inRound()) return;
   const { phase, team } = round;
   if (phase === 'question') {
-    if (correct) return finish(team);
-    if (settings.steal) { round.phase = 'steal'; phaseTimer(); return sync('wrong'); }
-    return finish(3);
+    return finish(correct ? team : 3);   // špatně a soupeř nechce → černé pole
   }
   if (phase === 'steal') return finish(correct ? other(team) : 3);
   if (phase === 'yesno') return finish(correct ? team : other(team));
@@ -467,9 +465,9 @@ function answer(correct) {
   if (phase === 'tiebreak2') return declareWinner(correct ? team : other(team), 'rozstřel');
 }
 
-// tlačítko 3: soupeř odmítá (pole zčerná) / v rozstřelu nikdo nezmáčkl
+// tlačítko 3: chce odpovídat druhý tým / v rozstřelu nikdo nezmáčkl
 function refuse() {
-  if (round.phase === 'steal') finish(3);
+  if (round.phase === 'question' && settings.steal) { round.phase = 'steal'; phaseTimer(); sync('wrong'); }
   // bod 21: nikdo nezmáčkl → špatná odpověď tomu, kdo by volil další otázku
   else if (round.phase === 'tiebreak') declareWinner(other(game.turn), 'rozstřel');
 }
@@ -626,8 +624,8 @@ function sync(sfx = null, popCell = -1) {
     $('bOther').disabled = !q;
     const me = tn(round.team), op = tn(other(round.team));
     const labels = {
-      question: [`✔ Správně → pole pro ${me}`, settings.steal ? `✘ Špatně / bez odpovědi → šance pro ${op}` : `✘ Špatně / bez odpovědi → černé pole`],
-      steal: [`✔ ${op} správně → pole pro ${op}`, `✘ ${op} špatně → černé pole`, `⏭ ${op} odmítá → černé pole`],
+      question: [`✔ Správně → pole pro ${me}`, `✘ Špatně → černé pole`, settings.steal ? `✋ Chce odpovídat ${op}` : ''],
+      steal: [`✔ ${op} správně → pole pro ${op}`, `✘ ${op} špatně → černé pole`],
       yesno: [`✔ Správně → pole pro ${me}`, `✘ Špatně → pole pro ${op}`],
       tiebreak: [`🔔 Dřív zmáčkl ${tn(1)}`, `🔔 Dřív zmáčkl ${tn(2)}`, `Nikdo → vyhrává ${tn(other(game.turn))}`],
       tiebreak2: [`✔ Správně → vyhrává ${me}`, `✘ Špatně → vyhrává ${op}`],
